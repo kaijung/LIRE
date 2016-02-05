@@ -268,6 +268,8 @@ public class GenericFastImageSearcher extends AbstractImageSearcher {
                 }
             } catch (IOException e) {
                 e.printStackTrace();
+            } catch (Exception e) {
+            	e.printStackTrace();
             }
         }
     }
