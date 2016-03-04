@@ -122,6 +122,7 @@ public interface DocumentBuilder {
     String FIELD_NAME_CVSURF = "CvSURF";
     //    public static final String FIELD_NAME_CVORB = "CvORB";
     //    public static final String FIELD_NAME_CVBRISK = "CvBRISK";
+    String FIELD_NAME_CVORBFREAK = "CvORBFREAK";
     String FIELD_NAME_SELF_SIMILARITIES = "SelfSimilarities";
     String FIELD_NAME_SELF_SIMILARITIES_ORIG = "SelfSimilaritiesOrig";
 
