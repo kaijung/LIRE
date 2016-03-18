@@ -98,7 +98,7 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 			FileWriter writer = new FileWriter(temp, false);
 			writer.write(orbSettings);
 			writer.close();
-			extractor.read(temp.getPath());
+			detector.read(temp.getPath());
 			
 			
 			String freakSettings = "%YAML:1.0" +
@@ -110,7 +110,7 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 			writer = new FileWriter(temp, false);
 			writer.write(freakSettings);
 			writer.close();			
-			detector.read(temp.getPath());
+			extractor.read(temp.getPath());
 			temp.deleteOnExit();
 		} catch (IOException e) {
 			e.printStackTrace();
