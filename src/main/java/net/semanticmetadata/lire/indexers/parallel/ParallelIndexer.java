@@ -1086,7 +1086,8 @@ public class ParallelIndexer implements Runnable {
                     if (tmp.getFileName() == null) locallyEnded = true;
                     else overallCount++;
                     if (!locallyEnded) {   //&& tmp != null
-                        fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
+                        //fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
+                        fields = documentBuilder.createFeatureDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
                         doc = allDocuments.get(tmp.getFileName());
                         for (Field field : fields) {
                             doc.add(field);
