@@ -8,18 +8,23 @@ import net.semanticmetadata.lire.builders.SimpleDocumentBuilder;
 import net.semanticmetadata.lire.classifiers.Cluster;
 import net.semanticmetadata.lire.imageanalysis.features.GlobalFeature;
 import net.semanticmetadata.lire.imageanalysis.features.LireFeature;
+import net.semanticmetadata.lire.imageanalysis.features.LocalFeature;
 import net.semanticmetadata.lire.imageanalysis.features.LocalFeatureExtractor;
+import net.semanticmetadata.lire.imageanalysis.features.local.opencvfeatures.CvOrbFreakFeature;
 import net.semanticmetadata.lire.imageanalysis.features.local.simple.SimpleExtractor;
 import net.semanticmetadata.lire.indexers.parallel.ExtractorItem;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.MultiFields;
 import org.apache.lucene.util.Bits;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectInputStream;
 import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
@@ -260,6 +265,24 @@ public class GenericFeatureSearcher extends AbstractFeatureSearcher {
                 if (reader.hasDeletions() && !liveDocs.get(i)) continue; // if it is deleted, just ignore it.
 
                 d = reader.document(i);
+                
+               // byte[] bytes=reader.document(i).get("orbfreakfeature").getBytes();
+//                byte[] bytes=reader.document(i).getField("SIMPLEdetCVSURFEHDBOVW512").binaryValue().bytes;
+//                IndexableField bytes1=reader.document(i).getField("SIMPLEdetCVSURFEHDBOVW512");
+                byte[] bytes2=reader.document(i).getField("orbfreakfeature").binaryValue().bytes;
+                IndexableField bytes3=reader.document(i).getField("orbfreakfeature");
+                List<? extends LocalFeature> bytelist;
+                try {
+        			ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes2));
+        			  bytelist = (List<? extends LocalFeature>) ois.readObject();
+        		} catch (IOException e) {
+        			// TODO Auto-generated catch block
+        			e.printStackTrace();
+        		} catch (ClassNotFoundException e) {
+        			// TODO Auto-generated catch block
+        			e.printStackTrace();
+        		}
+                //
                 tmpDistance = getDistance(d, lireFeature);
                 assert (tmpDistance >= 0);
                 // if the array is not full yet:
@@ -414,6 +437,7 @@ public class GenericFeatureSearcher extends AbstractFeatureSearcher {
     protected double getDistance(Document document, LireFeature lireFeature) {
         if (document.getField(fieldName).binaryValue() != null && document.getField(fieldName).binaryValue().length > 0) {
             cachedInstance.setByteArrayRepresentation(document.getField(fieldName).binaryValue().bytes, document.getField(fieldName).binaryValue().offset, document.getField(fieldName).binaryValue().length);
+            
             return lireFeature.getDistance(cachedInstance);
         } else {
             logger.warning("No feature stored in this document! (" + extractorItem.getExtractorClass().getName() + ")");
@@ -505,6 +529,25 @@ public class GenericFeatureSearcher extends AbstractFeatureSearcher {
         return searchHits;
 
     }
+//
+//    public FeatureSearchHits ImageExtractFeature(BufferedImage image, IndexReader reader) throws IOException {
+//        logger.finer("Starting extraction.");
+//        SimpleFeatureSearchHits searchHits = null;
+//        byte[] feature=null;
+//       
+//        if (extractorItem.isLocal()){
+//            LocalDocumentBuilder localDocumentBuilder = new LocalDocumentBuilder();
+//            LocalFeatureExtractor localFeatureExtractor = localDocumentBuilder.extractLocalFeatures(image, (LocalFeatureExtractor) extractorItem.getExtractorInstance());
+//            List<? extends LocalFeature> fee=localFeatureExtractor.getFeatures();
+//            aggregator.createVectorRepresentation(localFeatureExtractor.getFeatures(), Cluster.readClusters(codebooksDir + File.separator + codebookName));
+//            extractorItem.getFeatureInstance().setByteArrayRepresentation(aggregator.getByteVectorRepresentation());
+//
+//            
+//
+//        
+//        return fee;
+//
+//    }
 
 //    public FeatureSearchHits findDuplicates(IndexReader reader) throws IOException {
 //        // get the first document:
@@ -556,7 +599,16 @@ public class GenericFeatureSearcher extends AbstractFeatureSearcher {
 //        return simpleImageDuplicates;
 //
 //    }
-
+    public List<? extends LocalFeature> extractImagefeature(BufferedImage image) {
+    	List<? extends LocalFeature> fee=null;
+    	if (extractorItem.isLocal()){
+          LocalDocumentBuilder localDocumentBuilder = new LocalDocumentBuilder();
+          LocalFeatureExtractor localFeatureExtractor = localDocumentBuilder.extractLocalFeatures(image, (LocalFeatureExtractor) extractorItem.getExtractorInstance());
+          fee=localFeatureExtractor.getFeatures();
+          
+         }
+    	return fee;
+	}
     public String toString() {
         return "GenericSearcher using " + extractorItem.getExtractorClass().getName();
     }

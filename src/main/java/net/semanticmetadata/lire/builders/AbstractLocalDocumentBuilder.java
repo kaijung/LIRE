@@ -44,6 +44,11 @@ import net.semanticmetadata.lire.utils.ImageUtils;
 import org.apache.lucene.document.*;
 
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.util.*;
 
 /**
@@ -114,6 +119,43 @@ public abstract class AbstractLocalDocumentBuilder implements DocumentBuilder {
             count += 2;
         }
 
+        return result;
+    }
+    public Field[] createFeatureDescriptorFields(List<? extends LocalFeature> listOfLocalFeatures, ExtractorItem extractorItem, LinkedList<Cluster[]> listOfCodebooks){
+        Field[] result = new Field[listOfCodebooks.size() * 2+1];
+        int count = 0;
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        ObjectOutputStream oos;
+		try {
+			oos = new ObjectOutputStream(bos);
+			 oos.writeObject(listOfLocalFeatures);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+        byte[] bytes = bos.toByteArray();
+        List<? extends LocalFeature> bytelist;
+        try {
+			ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes));
+			  bytelist = (List<? extends LocalFeature>) ois.readObject();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+       
+        for (Cluster[] codebook : listOfCodebooks) {
+            aggregator.createVectorRepresentation(listOfLocalFeatures, codebook);
+            result[count] = new StoredField(fieldNamesDictionary.get(extractorItem).get(codebook.length)[0], aggregator.getByteVectorRepresentation());
+            result[count + 1] = new TextField(fieldNamesDictionary.get(extractorItem).get(codebook.length)[1], aggregator.getStringVectorRepresentation(), Field.Store.YES);
+            
+//            result[count + 3] = new TextField(fieldNamesDictionary.get(extractorItem).get(codebook.length)[1], aggregator.getStringVectorRepresentation(), Field.Store.YES);
+            count += 2;
+        }
+        result[4] = new StoredField("orbfreakfeature",bytes);
         return result;
     }
 
