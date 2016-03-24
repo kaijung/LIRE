@@ -263,27 +263,8 @@ public class GenericFeatureSearcher extends AbstractFeatureSearcher {
             // we read each and every document from the index and then we compare it to the query.
             for (int i = 0; i < docs; i++) {
                 if (reader.hasDeletions() && !liveDocs.get(i)) continue; // if it is deleted, just ignore it.
-
-                d = reader.document(i);
-                
-               // byte[] bytes=reader.document(i).get("orbfreakfeature").getBytes();
-//                byte[] bytes=reader.document(i).getField("SIMPLEdetCVSURFEHDBOVW512").binaryValue().bytes;
-//                IndexableField bytes1=reader.document(i).getField("SIMPLEdetCVSURFEHDBOVW512");
-                byte[] bytes2=reader.document(i).getField("orbfreakfeature").binaryValue().bytes;
-                IndexableField bytes3=reader.document(i).getField("orbfreakfeature");
-                List<? extends LocalFeature> bytelist;
-                try {
-        			ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(bytes2));
-        			  bytelist = (List<? extends LocalFeature>) ois.readObject();
-        		} catch (IOException e) {
-        			// TODO Auto-generated catch block
-        			e.printStackTrace();
-        		} catch (ClassNotFoundException e) {
-        			// TODO Auto-generated catch block
-        			e.printStackTrace();
-        		}
-                //
-                tmpDistance = getDistance(d, lireFeature);
+                    d = reader.document(i);
+                    tmpDistance = getDistance(d, lireFeature);
                 assert (tmpDistance >= 0);
                 // if the array is not full yet:
                 if (this.docs.size() < maxHits) {

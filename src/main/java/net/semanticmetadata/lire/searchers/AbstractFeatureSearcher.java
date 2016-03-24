@@ -7,7 +7,7 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Set;
-public abstract class AbstractFeatureSearcher implements FestureSearcher{
+public abstract class AbstractFeatureSearcher implements FeatureSearcher{
 	   public FeatureSearchHits search(byte[] feature, IndexReader reader) throws IOException {
 	        //BufferedImage bufferedImage = ImageIO.read(image);
 	        return search(feature, reader);
