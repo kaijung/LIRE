@@ -1068,7 +1068,7 @@ public class ParallelIndexer implements Runnable {
             ExtractorItem tmpExtractorItem = extractorItem.clone();
             if (extractorItem.isLocal())
                 documentBuilder = new LocalDocumentBuilder(tmpExtractorItem, clusters, aggregator);
-                //documentBuilder = new LocalFeatureDocumentBuilder(tmpExtractorItem, clusters, aggregator);
+                
             else if (extractorItem.isSimple())
                 documentBuilder = new SimpleDocumentBuilder(tmpExtractorItem, clusters, aggregator);
             else throw new UnsupportedOperationException("Something is wrong!! (ConsumerForLocalSample)");
@@ -1083,23 +1083,32 @@ public class ParallelIndexer implements Runnable {
             Field[] fields;
             Document doc;
             BufferedImage image;
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            ObjectOutputStream oos;
+    		
+    		
+            byte[] bytes ;
             while (!locallyEnded) {
                 try {
                     tmp = queue.take();
-                   
+                    oos = new ObjectOutputStream(bos);
+       			    oos.writeObject(tmp.getListOfFeatures());
+       			    bytes=bos.toByteArray();
                     if (tmp.getFileName() == null) locallyEnded = true;
                     else overallCount++;
+                    
                     if (!locallyEnded) {   //&& tmp != null
-                       //fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
+                       fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
                        
-                        fields = documentBuilder.createFeatureDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
+                       
                         doc = allDocuments.get(tmp.getFileName());
                         image=ImageIO.read(new File(tmp.getFileName()));
                         for (Field field : fields) {
                             doc.add(field);
                         }
-//                        doc.add(new StoredField("height",image.getHeight()));
-//                        doc.add(new StoredField("width",image.getWidth()));
+                        doc.add(new StoredField("height",image.getHeight()));
+                        doc.add(new StoredField("width",image.getWidth()));
+                        doc.add( new StoredField("orbfreakfeature",bytes));
                         
                     }
                 } catch (InterruptedException e) {

@@ -3,12 +3,15 @@ package net.semanticmetadata.lire.searchers;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
 import java.util.Set;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 
-public interface FestureSearcher {
+import net.semanticmetadata.lire.imageanalysis.features.LocalFeature;
+
+public interface FeatureSearcher {
 	 /**
      * Searches for images similar to the given image.
      *
@@ -28,7 +31,7 @@ public interface FestureSearcher {
      * @throws java.io.IOException in case exceptions in the reader occurs
      */
     public FeatureSearchHits search(Document doc, IndexReader reader) throws IOException;
-
+    public List<? extends LocalFeature> extractImagefeature(BufferedImage image);
     /**
      * Searches for images similar to the given image.
      *
@@ -59,6 +62,7 @@ public interface FestureSearcher {
      */
     public FeatureSearchHits relevanceFeedback(ImageSearchHits originalSearch,
                                              Set<Document> positives, Set<Document> negatives);
+    
 }
 
 
