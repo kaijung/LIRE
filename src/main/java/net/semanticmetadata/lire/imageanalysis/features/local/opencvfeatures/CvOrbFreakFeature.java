@@ -115,7 +115,7 @@ public class CvOrbFreakFeature implements Serializable, LocalFeature {
 
 	@Override
 	public String getFeatureName() {
-		return "cvFreak";
+		return "cvOrbFreak";
 	}
 
 	@Override
