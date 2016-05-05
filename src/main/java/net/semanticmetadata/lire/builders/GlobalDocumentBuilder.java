@@ -43,12 +43,27 @@ import net.semanticmetadata.lire.utils.ImageUtils;
 import net.semanticmetadata.lire.utils.SerializationUtils;
 import org.apache.lucene.document.*;
 import org.apache.lucene.util.BytesRef;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfKeyPoint;
+import org.opencv.features2d.DescriptorExtractor;
+import org.opencv.features2d.FeatureDetector;
+import org.opencv.features2d.KeyPoint;
+import org.opencv.highgui.Highgui;
+import org.opencv.imgproc.Imgproc;
 
 import java.awt.image.BufferedImage;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
+
+import javax.imageio.ImageIO;
 
 /**
  * This class creates Lucene Documents from images using one or multiple Global Features.
@@ -283,5 +298,92 @@ public class GlobalDocumentBuilder implements DocumentBuilder {
         }
 
         return doc;
+    }
+    public Field[] extractFeatures(String path){
+    	
+        Field[] result = new Field[6];       	
+    	FeatureDetector detector;
+    	DescriptorExtractor extractor;
+		detector = FeatureDetector.create(FeatureDetector.ORB);
+		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
+		
+        try {
+			BufferedImage image=ImageIO.read(new File(path));
+			result[0] = new StoredField("height",image.getHeight());
+			result[1] = new StoredField("width",image.getWidth());
+		} catch (IOException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
+		
+		File temp;
+		try {
+			temp = File.createTempFile("tempFile", ".tmp");
+			String orbSettings = "%YAML:1.0\nname: \"Feature2D.ORB\"\nWTA_K: 2\nedgeThreshold: 31\nfirstLevel: 0\nnFeatures: 3500 \nnLevels: 8 \npatchSize: 31\nscaleFactor: 1.20\nscoreType: 0\n";
+			FileWriter writer = new FileWriter(temp, false);
+			writer.write(orbSettings);
+			writer.close();
+			detector.read(temp.getPath());
+			String freakSettings = "%YAML:1.0 \npatternScale: 22.0 \nnOctaves: 8 \norientationNormalized : True \nscaleNormalized : True\n";
+
+			writer = new FileWriter(temp, false);
+			writer.write(freakSettings);
+			writer.close();			
+			extractor.read(temp.getPath());
+			temp.deleteOnExit();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+    	
+    	
+		MatOfKeyPoint keypoints = new MatOfKeyPoint();
+		Mat descriptors = new Mat();
+		List<KeyPoint> myKeys;
+
+		Mat matRGB =  Highgui.imread(path);
+		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
+		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
+																	// or BGR?
+		detector.detect(matGray, keypoints);
+		extractor.compute(matGray, keypoints, descriptors);
+		myKeys = keypoints.toList();
+		
+		result[2]=new StoredField("numOfFeatures", myKeys.size());
+
+		int cols = descriptors.cols(); 
+		int rows = descriptors.rows(); 
+		
+		byte[] desc = new byte[cols * rows]; 
+		descriptors.get(0, 0, desc);
+		
+		KeyPoint key;    		
+		byte[] features = new byte[ (4 + 4 + 4 + cols) * rows ];
+		
+		for (int i = 0; i < rows; i++) {
+			//byte[] desc = new byte[cols];
+			key = myKeys.get(i);
+			//descriptors.get(i, cols, desc);
+			byte[] x = ByteBuffer.allocate(4).putInt((int)key.pt.x).array();
+			byte[] y = ByteBuffer.allocate(4).putInt((int)key.pt.y).array();
+			byte[] size = ByteBuffer.allocate(4).putInt((int)key.size).array(); 
+			
+			byte[] feature = new byte[x.length + y.length + size.length + cols];
+			
+			System.arraycopy(x, 0, feature, 0, x.length);
+			
+			System.arraycopy(y, 0, feature, x.length, y.length);
+			
+			System.arraycopy(size, 0, feature, x.length+ y.length, size.length);
+			
+			System.arraycopy(desc, cols * i, feature, x.length+ y.length + size.length, cols);    			
+			
+			System.arraycopy(feature, 0, features, feature.length * i, feature.length);    			
+		}
+		result[3]=new StoredField("rowsOfDesc", rows);
+		result[4]=new StoredField("colsOfDesc", cols);
+		result[5]=new StoredField("features", features);
+		
+		return result;
     }
 }
