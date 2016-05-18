@@ -55,6 +55,7 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
@@ -64,7 +65,6 @@ import org.opencv.features2d.FeatureDetector;
 import org.opencv.features2d.KeyPoint;
 import org.opencv.highgui.Highgui;
 import org.opencv.imgproc.Imgproc;
-
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
@@ -1185,7 +1185,7 @@ public class ParallelIndexer implements Runnable {
             ByteArrayOutputStream bos = new ByteArrayOutputStream();
             ObjectOutputStream oos;
     		
-    		
+              
             byte[] bytes ;
             while (!locallyEnded) {
                 try {
@@ -1237,6 +1237,11 @@ public class ParallelIndexer implements Runnable {
             WorkItem tmp;
             Field[] fields;
             Document doc;
+            String uniqueId;
+            String signId;
+            
+            long rv;
+            Long unsignLong ;
             while (!locallyEnded) {
                 try {
                     tmp = queue.take();
@@ -1244,14 +1249,18 @@ public class ParallelIndexer implements Runnable {
                     else overallCount++;
                     if (!locallyEnded) {   //&& tmp != null
                         BufferedImage image = ImageIO.read(new ByteArrayInputStream(tmp.getBuffer()));
-                        if(imagePreprocessor != null){
+                        rv=FNVHash.hash64(tmp.getBuffer());
+                        uniqueId=FNVHash.asUnsignedDecimalString(rv);                       
+                        
+                       if(imagePreprocessor != null){
                             image = imagePreprocessor.process(image);
                         }
                         fields = globalDocumentBuilder.createDescriptorFields(image);
-                        doc = allDocuments.get(tmp.getFileName());
+                        doc = allDocuments.get(tmp.getFileName());                       
                         for (Field field : fields) {
                             doc.add(field);
                         }
+                        doc.add(new TextField("uniqueId", uniqueId, Field.Store.YES));   
                     }
                 } catch (InterruptedException | IOException e) {
                     log.severe(e.getMessage());
