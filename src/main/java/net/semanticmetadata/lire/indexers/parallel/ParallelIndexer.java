@@ -65,6 +65,9 @@ import org.opencv.features2d.FeatureDetector;
 import org.opencv.features2d.KeyPoint;
 import org.opencv.highgui.Highgui;
 import org.opencv.imgproc.Imgproc;
+
+
+
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.image.BufferedImage;
@@ -1059,7 +1062,10 @@ public class ParallelIndexer implements Runnable {
                         if(imagePreprocessor != null){
                             image = imagePreprocessor.process(image);
                         }
+                       
                         conSampleMap.put(tmp.getFileName(), (documentBuilder.extractLocalFeatures(image, ((LocalFeatureExtractor) extractorItem.getExtractorInstance())).getFeatures()));
+                        image.flush();
+                        image=null;
                     }
                 } catch (InterruptedException | IOException e) {
                     log.severe(e.getMessage());
@@ -1074,6 +1080,7 @@ public class ParallelIndexer implements Runnable {
         private ExtractorItem localExtractorItem;
         private LinkedList<Cluster[]> clusters;
         private boolean locallyEnded;
+        private boolean keypointZero;
         
         private Field[] extractFeatures(String path){
         	
@@ -1083,10 +1090,13 @@ public class ParallelIndexer implements Runnable {
     		detector = FeatureDetector.create(FeatureDetector.ORB);
     		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
     		
+    		BufferedImage image=null;
             try {
-				BufferedImage image=ImageIO.read(new File(path));
+				image=ImageIO.read(new File(path));
 				result[0] = new StoredField("height",image.getHeight());
 				result[1] = new StoredField("width",image.getWidth());
+				image.flush();
+				image=null;
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
@@ -1115,15 +1125,39 @@ public class ParallelIndexer implements Runnable {
         	
     		MatOfKeyPoint keypoints = new MatOfKeyPoint();
     		Mat descriptors = new Mat();
-    		List<KeyPoint> myKeys;
+    		List<KeyPoint> myKeys = null;
 
     		Mat matRGB =  Highgui.imread(path);
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
-    																	// or BGR?
+    		try{		
+    			// or BGR?
+    			
     		detector.detect(matGray, keypoints);
-    		extractor.compute(matGray, keypoints, descriptors);
-    		myKeys = keypoints.toList();
+    		System.out.println("detect"+keypoints.total());
+    
+    		 if(keypoints.total()==0 ){
+ 	        	
+ 	        	this.keypointZero=true;
+ 	        	System.out.println("errer image"+path);
+ 	        		
+ 			}
+    		
+    		 extractor.compute(matGray, keypoints, descriptors);
+    		
+    		 System.out.println("compute"+keypoints.total());
+	       
+	        
+	            if(!keypointZero){    
+	        	myKeys = keypoints.toList();	
+	        }
+	   
+    		}catch(Exception e){
+    			    				
+    				System.out.println("errer image"+path);
+    					 			
+    		}
+    		
     		
     		result[2]=new StoredField("numOfFeatures", myKeys.size());
 
@@ -1137,6 +1171,7 @@ public class ParallelIndexer implements Runnable {
     		byte[] features = new byte[ (4 + 4 + 4 + cols) * rows ];
     		
     		for (int i = 0; i < rows; i++) {
+    			
     			//byte[] desc = new byte[cols];
     			key = myKeys.get(i);
     			//descriptors.get(i, cols, desc);
@@ -1154,11 +1189,20 @@ public class ParallelIndexer implements Runnable {
     			
     			System.arraycopy(desc, cols * i, feature, x.length+ y.length + size.length, cols);    			
     			
-    			System.arraycopy(feature, 0, features, feature.length * i, feature.length);    			
+    			System.arraycopy(feature, 0, features, feature.length * i, feature.length);    	
+    			feature = null;
+    			
     		}
     		result[3]=new StoredField("rowsOfDesc", rows);
     		result[4]=new StoredField("colsOfDesc", cols);
-    		result[5]=new StoredField("features", features);
+       		result[5]=new StoredField("features", features);
+       		
+    		desc =null;
+    		features=null;
+    		descriptors.release();
+    		keypoints.release();
+    		matRGB.release();
+    		matGray.release();
     		
     		return result;
         }
@@ -1175,6 +1219,7 @@ public class ParallelIndexer implements Runnable {
             this.localExtractorItem = tmpExtractorItem;
             this.clusters = clusters;
             this.locallyEnded = false;
+            this.keypointZero=false;
         }
 
         public void run() {
@@ -1203,6 +1248,7 @@ public class ParallelIndexer implements Runnable {
                        for (Field field : fields) {
                           doc.add(field);
                        }
+                      
                         
                        fields = this.extractFeatures(tmp.getFileName());
 
@@ -1210,7 +1256,9 @@ public class ParallelIndexer implements Runnable {
                            doc.add(field);
                        }                       
                         //doc.add( new StoredField("orbfreakfeature",bytes)); 
+                       fields=null;
                     }
+                   
                 } catch (InterruptedException e) {
                     log.severe(e.getMessage());
                 } catch (IOException e) {
@@ -1256,7 +1304,8 @@ public class ParallelIndexer implements Runnable {
                             image = imagePreprocessor.process(image);
                         }
                         fields = globalDocumentBuilder.createDescriptorFields(image);
-                        doc = allDocuments.get(tmp.getFileName());                       
+                        doc = allDocuments.get(tmp.getFileName());
+                        
                         for (Field field : fields) {
                             doc.add(field);
                         }
