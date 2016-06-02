@@ -145,7 +145,32 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 		matGray.get(0, 0, dataGray);
 
 		detector.detect(matGray, keypoints);
+		if (keypoints.total() == 0) {
+
+			descriptors.release();
+			keypoints.release();
+			matRGB.release();
+			matGray.release();
+			descriptors = null;
+			keypoints = null;
+			matRGB = null;
+			matGray = null;
+			return;
+		}
+		
 		extractor.compute(matGray, keypoints, descriptors);
+		if (keypoints.total() == 0) {
+
+			descriptors.release();
+			keypoints.release();
+			matRGB.release();
+			matGray.release();
+			descriptors = null;
+			keypoints = null;
+			matRGB = null;
+			matGray = null;
+			return;
+		}
 		myKeys = keypoints.toList();
 
 		features = new LinkedList<CvOrbFreakFeature>();

@@ -1130,33 +1130,52 @@ public class ParallelIndexer implements Runnable {
     		Mat matRGB =  Highgui.imread(path);
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
-    		try{		
-    			// or BGR?
-    			
-    		detector.detect(matGray, keypoints);
-    		System.out.println("detect"+keypoints.total());
-    
-    		 if(keypoints.total()==0 ){
- 	        	
- 	        	this.keypointZero=true;
- 	        	System.out.println("errer image"+path);
- 	        		
- 			}
-    		
-    		 extractor.compute(matGray, keypoints, descriptors);
-    		
-    		 System.out.println("compute"+keypoints.total());
-	       
-	        
-	            if(!keypointZero){    
-	        	myKeys = keypoints.toList();	
-	        }
-	   
-    		}catch(Exception e){
-    			    				
-    				System.out.println("errer image"+path);
-    					 			
-    		}
+			try {
+				// or BGR?
+
+				detector.detect(matGray, keypoints);
+				// System.out.println("detect"+keypoints.total());
+
+				if (keypoints.total() == 0) {
+					
+					descriptors.release();
+					keypoints.release();
+					matRGB.release();
+					matGray.release();
+					descriptors = null;
+					keypoints = null;
+					matRGB = null;
+					matGray = null;
+					
+					log.severe("detect :"+keypoints.total()+" path :"+path);
+					return result;
+				}
+
+				extractor.compute(matGray, keypoints, descriptors);
+
+				// System.out.println("compute"+keypoints.total());
+				if (keypoints.total() == 0) {
+
+					descriptors.release();
+					keypoints.release();
+					matRGB.release();
+					matGray.release();
+					descriptors = null;
+					keypoints = null;
+					matRGB = null;
+					matGray = null;
+					
+					log.severe("compute :"+keypoints.total()+" path :"+path);
+					return result;
+				}
+
+				myKeys = keypoints.toList();
+
+			} catch (Exception e) {
+
+				System.out.println("errer image" + path);
+
+			}
     		
     		
     		result[2]=new StoredField("numOfFeatures", myKeys.size());
@@ -1203,7 +1222,11 @@ public class ParallelIndexer implements Runnable {
     		keypoints.release();
     		matRGB.release();
     		matGray.release();
-    		
+			descriptors = null;
+			keypoints = null;
+			matRGB = null;
+			matGray = null;
+			
     		return result;
         }
         
