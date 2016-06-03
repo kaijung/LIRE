@@ -65,7 +65,7 @@ import org.opencv.features2d.FeatureDetector;
 import org.opencv.features2d.KeyPoint;
 import org.opencv.highgui.Highgui;
 import org.opencv.imgproc.Imgproc;
-
+import java.util.concurrent.locks.*;
 
 
 import javax.imageio.ImageIO;
@@ -1081,7 +1081,7 @@ public class ParallelIndexer implements Runnable {
         private LinkedList<Cluster[]> clusters;
         private boolean locallyEnded;
         private boolean keypointZero;
-        
+        private Lock lock = new ReentrantLock();
         private Field[] extractFeatures(String path){
         	
             Field[] result = new Field[6];       	
@@ -1132,12 +1132,12 @@ public class ParallelIndexer implements Runnable {
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
 			try {
 				// or BGR?
-
+				lock.lock();
 				detector.detect(matGray, keypoints);
-				// System.out.println("detect"+keypoints.total());
+				System.out.println("detect"+keypoints.total());
 
 				if (keypoints.total() == 0) {
-					
+					log.severe("detect :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
 					matRGB.release();
@@ -1147,15 +1147,15 @@ public class ParallelIndexer implements Runnable {
 					matRGB = null;
 					matGray = null;
 					
-					log.severe("detect :"+keypoints.total()+" path :"+path);
+					
 					return result;
 				}
 
 				extractor.compute(matGray, keypoints, descriptors);
 
-				// System.out.println("compute"+keypoints.total());
+				 System.out.println("compute"+keypoints.total());
 				if (keypoints.total() == 0) {
-
+					log.severe("compute :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
 					matRGB.release();
@@ -1165,15 +1165,15 @@ public class ParallelIndexer implements Runnable {
 					matRGB = null;
 					matGray = null;
 					
-					log.severe("compute :"+keypoints.total()+" path :"+path);
+					
 					return result;
 				}
 
 				myKeys = keypoints.toList();
 
-			} catch (Exception e) {
-
-				System.out.println("errer image" + path);
+			} finally {
+				lock.unlock();
+				//System.out.println("errer image" + path);
 
 			}
     		
