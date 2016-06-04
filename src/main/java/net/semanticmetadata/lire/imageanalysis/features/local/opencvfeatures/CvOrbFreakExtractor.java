@@ -53,6 +53,8 @@ import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 
@@ -136,6 +138,7 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 		// CV_LOAD_IMAGE_GRAYSCALE
 		// detector.detect(img_object, keypoints);
 		byte[] data = ((DataBufferByte) img.getRaster().getDataBuffer()).getData();
+		//Lock lock = new ReentrantLock();
 		Mat matRGB = new Mat(img.getHeight(), img.getWidth(), CvType.CV_8UC3);
 		matRGB.put(0, 0, data);
 		Mat matGray = new Mat(img.getHeight(), img.getWidth(), CvType.CV_8UC1);
@@ -143,7 +146,8 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 																	// or BGR?
 		byte[] dataGray = new byte[matGray.rows() * matGray.cols() * (int) (matGray.elemSize())];
 		matGray.get(0, 0, dataGray);
-
+		//try{
+			//lock.lock();
 		detector.detect(matGray, keypoints);
 		if (keypoints.total() == 0) {
 
@@ -172,7 +176,11 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 			return;
 		}
 		myKeys = keypoints.toList();
+	/*} finally {
+		lock.unlock();
+		//System.out.println("errer image" + path);
 
+	}*/
 		features = new LinkedList<CvOrbFreakFeature>();
 		KeyPoint key;
 		CvOrbFreakFeature feat;
@@ -202,12 +210,17 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 		Mat matGray = new Mat(img.getHeight(), img.getWidth(), CvType.CV_8UC1);
 		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
 																	// or BGR?
+		//Lock lock = new ReentrantLock();
 		byte[] dataGray = new byte[matGray.rows() * matGray.cols() * (int) (matGray.elemSize())];
 		matGray.get(0, 0, dataGray);
-
+       // try{
+        	//lock.lock();
 		detector.detect(matGray, keypoints);
 		myKeys = keypoints.toList();
-
+       /* }
+        finally{
+        	lock.unlock();	
+        }*/
 		LinkedList<CvOrbFreakFeature> myKeypoints = new LinkedList<CvOrbFreakFeature>();
 		KeyPoint key;
 		CvOrbFreakFeature feat;

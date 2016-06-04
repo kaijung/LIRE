@@ -1081,7 +1081,7 @@ public class ParallelIndexer implements Runnable {
         private LinkedList<Cluster[]> clusters;
         private boolean locallyEnded;
         private boolean keypointZero;
-        private Lock lock = new ReentrantLock();
+        //private Lock lock = new ReentrantLock();
         private Field[] extractFeatures(String path){
         	
             Field[] result = new Field[6];       	
@@ -1130,11 +1130,11 @@ public class ParallelIndexer implements Runnable {
     		Mat matRGB =  Highgui.imread(path);
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
-			try {
+			//try {
 				// or BGR?
-				lock.lock();
+				//lock.lock();
 				detector.detect(matGray, keypoints);
-				System.out.println("detect"+keypoints.total());
+				//System.out.println("detect"+keypoints.total());
 
 				if (keypoints.total() == 0) {
 					log.severe("detect :"+keypoints.total()+" path :"+path);
@@ -1153,7 +1153,7 @@ public class ParallelIndexer implements Runnable {
 
 				extractor.compute(matGray, keypoints, descriptors);
 
-				 System.out.println("compute"+keypoints.total());
+				 //System.out.println("compute"+keypoints.total());
 				if (keypoints.total() == 0) {
 					log.severe("compute :"+keypoints.total()+" path :"+path);
 					descriptors.release();
@@ -1171,11 +1171,11 @@ public class ParallelIndexer implements Runnable {
 
 				myKeys = keypoints.toList();
 
-			} finally {
+			/*} finally {
 				lock.unlock();
 				//System.out.println("errer image" + path);
 
-			}
+			}*/
     		
     		
     		result[2]=new StoredField("numOfFeatures", myKeys.size());
