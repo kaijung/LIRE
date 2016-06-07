@@ -988,6 +988,7 @@ public class ParallelIndexer implements Runnable {
                     map.load();
                     map.get(buffer);
                     queue.put(new WorkItem(path, buffer));
+                    buffer=null;
                     channel.close();
                     fis.close();
                 } catch (Exception e) {
@@ -1064,8 +1065,10 @@ public class ParallelIndexer implements Runnable {
                         }
                        
                         conSampleMap.put(tmp.getFileName(), (documentBuilder.extractLocalFeatures(image, ((LocalFeatureExtractor) extractorItem.getExtractorInstance())).getFeatures()));
+                        b=null;
                         image.flush();
                         image=null;
+                        
                     }
                 } catch (InterruptedException | IOException e) {
                     log.severe(e.getMessage());
@@ -1130,7 +1133,7 @@ public class ParallelIndexer implements Runnable {
     		Mat matRGB =  Highgui.imread(path);
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
-			//try {
+			try {
 				// or BGR?
 				//lock.lock();
 				detector.detect(matGray, keypoints);
@@ -1171,11 +1174,14 @@ public class ParallelIndexer implements Runnable {
 
 				myKeys = keypoints.toList();
 
-			/*} finally {
-				lock.unlock();
+			} catch (Exception e) {
+				   System.out.println(e);
+			  }
+			finally {
+				//lock.unlock();
 				//System.out.println("errer image" + path);
 
-			}*/
+			}
     		
     		
     		result[2]=new StoredField("numOfFeatures", myKeys.size());
@@ -1249,18 +1255,12 @@ public class ParallelIndexer implements Runnable {
             WorkItem tmp;
             Field[] fields;
             Document doc;
-
-            ByteArrayOutputStream bos = new ByteArrayOutputStream();
-            ObjectOutputStream oos;
-    		
-              
-            byte[] bytes ;
+                              
             while (!locallyEnded) {
                 try {
                     tmp = queue.take();
-                    oos = new ObjectOutputStream(bos);
-       			    oos.writeObject(tmp.getListOfFeatures());
-       			    bytes=bos.toByteArray();
+                   
+       			    
                     if (tmp.getFileName() == null) locallyEnded = true;
                     else overallCount++;
                     
@@ -1284,10 +1284,7 @@ public class ParallelIndexer implements Runnable {
                    
                 } catch (InterruptedException e) {
                     log.severe(e.getMessage());
-                } catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+                } 
             }
         }
     }

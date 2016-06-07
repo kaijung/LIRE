@@ -195,6 +195,8 @@ public class CvOrbFreakExtractor implements LocalFeatureExtractor {
 			}
 			feat = new CvOrbFreakFeature(key.pt.x, key.pt.y, key.size, desc);
 			features.add(feat);
+			desc=null;
+			feat=null;
 		}
 	}
 
