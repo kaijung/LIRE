@@ -85,7 +85,7 @@ import java.io.FileNotFoundException;
 public interface DocumentBuilder {
     int MAX_IMAGE_DIMENSION = 1024;
 
-    int NUM_OF_THREADS = 8;
+    int NUM_OF_THREADS = 16;
 
     String HASH_FIELD_SUFFIX = "_hash";
 

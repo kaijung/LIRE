@@ -1136,6 +1136,7 @@ public class ParallelIndexer implements Runnable {
 			try {
 				// or BGR?
 				//lock.lock();
+				log.severe("detect : "+path);
 				detector.detect(matGray, keypoints);
 				//System.out.println("detect"+keypoints.total());
 
@@ -1145,6 +1146,8 @@ public class ParallelIndexer implements Runnable {
 					keypoints.release();
 					matRGB.release();
 					matGray.release();
+					detector.release();
+                			extractor.release();
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
@@ -1153,7 +1156,7 @@ public class ParallelIndexer implements Runnable {
 					
 					return result;
 				}
-
+				log.severe("compute : "+path);
 				extractor.compute(matGray, keypoints, descriptors);
 
 				 //System.out.println("compute"+keypoints.total());
@@ -1163,15 +1166,16 @@ public class ParallelIndexer implements Runnable {
 					keypoints.release();
 					matRGB.release();
 					matGray.release();
+					detector.release();
+                			extractor.release();
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
 					matGray = null;
 					
-					
 					return result;
 				}
-
+   				log.severe("to list : "+path);
 				myKeys = keypoints.toList();
 
 			} catch (Exception e) {
@@ -1182,7 +1186,7 @@ public class ParallelIndexer implements Runnable {
 				//System.out.println("errer image" + path);
 
 			}
-    		
+    			log.severe("store field : "+path);
     		
     		result[2]=new StoredField("numOfFeatures", myKeys.size());
 
@@ -1228,12 +1232,15 @@ public class ParallelIndexer implements Runnable {
     		keypoints.release();
     		matRGB.release();
     		matGray.release();
-			descriptors = null;
-			keypoints = null;
-			matRGB = null;
-			matGray = null;
-			
-    		return result;
+		detector.release();
+		extractor.release();
+		descriptors = null;
+		keypoints = null;
+		matRGB = null;
+		matGray = null;
+		myKeys = null;	
+    		
+		return result;
         }
         
         public ConsumerForLocalSample(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
