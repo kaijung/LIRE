@@ -50,6 +50,7 @@ import net.semanticmetadata.lire.imageanalysis.features.global.JCD;
 import net.semanticmetadata.lire.imageanalysis.features.local.opencvfeatures.CvOrbFreakFeature;
 import net.semanticmetadata.lire.imageanalysis.features.local.simple.SimpleExtractor;
 import net.semanticmetadata.lire.utils.FileUtils;
+import net.semanticmetadata.lire.utils.ImageUtils;
 import net.semanticmetadata.lire.utils.LuceneUtils;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -57,9 +58,11 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
+import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfKeyPoint;
+import org.opencv.core.Size;
 import org.opencv.features2d.DescriptorExtractor;
 import org.opencv.features2d.FeatureDetector;
 import org.opencv.features2d.KeyPoint;
@@ -84,7 +87,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
-
+import org.opencv.core.Size;
 //import net.semanticmetadata.lire.imageanalysis.features.global.ACCID;
 
 /**
@@ -121,11 +124,11 @@ public class ParallelIndexer implements Runnable {
     private String imageDirectory, indexPath;
     private File imageList = null;
     private List<String> allImages, sampleImages;
-
+    private Document featuredoc;
     private int numOfDocsForCodebooks = 300;
     private int[] numOfClusters = new int[]{512};
     private TreeSet<Integer> numOfClustersSet = new TreeSet<Integer>();
-
+    
     private HashSet<ExtractorItem> GlobalExtractors = new HashSet<ExtractorItem>(10); // default size (16)
     private HashMap<ExtractorItem, LinkedList<Cluster[]>> LocalExtractorsAndCodebooks = new HashMap<ExtractorItem, LinkedList<Cluster[]>>(10); // default size (16)
     private HashMap<ExtractorItem, LinkedList<Cluster[]>> SimpleExtractorsAndCodebooks = new HashMap<ExtractorItem, LinkedList<Cluster[]>>(10); // default size (16)
@@ -841,7 +844,8 @@ public class ParallelIndexer implements Runnable {
             e.printStackTrace();
         }
     }
-
+   
+   
     private void sample(HashMap<ExtractorItem, LinkedList<Cluster[]>> mapWithClassesAndCodebooks) {
         long start, end;
         LinkedList<Thread> threads = new LinkedList<Thread>();
@@ -921,6 +925,28 @@ public class ParallelIndexer implements Runnable {
                 start = System.currentTimeMillis();
                 for (int i = 0; i < numOfThreads; i++) {
                     c = new Thread(new ConsumerForLocalSample(extractorItem, mapWithClassesAndCodebooks.get(extractorItem)));
+                    threads.add(c);
+                    c.start();
+                }
+                monitoring = new Monitoring();
+                m = new Thread(monitoring);
+                m.start();
+                for (Thread thread : threads) {
+                    try {
+                        thread.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                }
+                monitoring.killMonitoring();
+                end = System.currentTimeMillis() - start;
+                System.out.printf("Analyzed %d images in %s ~ %3.2f ms each.\n", overallCount, convertTime(end), ((overallCount > 0) ? ((float) end / (float) overallCount) : -1f));
+                threads.clear();
+                p = new Thread(new ProducerForLocalSample(conSampleMap));
+                p.start();
+                start = System.currentTimeMillis();
+                for (int i = 0; i < numOfThreads; i++) {
+                    c = new Thread(new ConsumerForOrbFreakFeature(extractorItem, mapWithClassesAndCodebooks.get(extractorItem)));
                     threads.add(c);
                     c.start();
                 }
@@ -1058,8 +1084,13 @@ public class ParallelIndexer implements Runnable {
                     if (tmp.getFileName() == null) locallyEnded = true;
                     else overallCount++;
                     if (!locallyEnded) {   //&& tmp != null
+                    	BufferedImage image = null;
                         b = new ByteArrayInputStream(tmp.getBuffer());
-                        BufferedImage image = ImageIO.read(b);
+                        try{
+                         image = ImageIO.read(b);
+                        } catch (Exception e){
+                        	System.out.println("error image"+tmp.getFileName());		
+                        }
                         if(imagePreprocessor != null){
                             image = imagePreprocessor.process(image);
                         }
@@ -1070,7 +1101,7 @@ public class ParallelIndexer implements Runnable {
                         image=null;
                         
                     }
-                } catch (InterruptedException | IOException e) {
+                } catch (InterruptedException e) {
                     log.severe(e.getMessage());
                 }
             }
@@ -1079,6 +1110,62 @@ public class ParallelIndexer implements Runnable {
     }
 
     class ConsumerForLocalSample implements Runnable {
+        private AbstractLocalDocumentBuilder documentBuilder;
+        private ExtractorItem localExtractorItem;
+        private LinkedList<Cluster[]> clusters;
+        private boolean locallyEnded;
+        private boolean keypointZero;
+        //private Lock lock = new ReentrantLock();
+        
+        
+        
+        public ConsumerForLocalSample(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
+            ExtractorItem tmpExtractorItem = extractorItem.clone();
+            if (extractorItem.isLocal())
+                documentBuilder = new LocalDocumentBuilder(tmpExtractorItem, clusters, aggregator);
+                
+            else if (extractorItem.isSimple())
+                documentBuilder = new SimpleDocumentBuilder(tmpExtractorItem, clusters, aggregator);
+            else throw new UnsupportedOperationException("Something is wrong!! (ConsumerForLocalSample)");
+
+            this.localExtractorItem = tmpExtractorItem;
+            this.clusters = clusters;
+            this.locallyEnded = false;
+            this.keypointZero=false;
+        }
+
+        public void run() {
+            WorkItem tmp;
+            Field[] fields;
+            Document doc;
+                              
+            while (!locallyEnded) {
+                try {
+                    tmp = queue.take();
+                   
+       			    
+                    if (tmp.getFileName() == null) locallyEnded = true;
+                    else overallCount++;
+                    
+                    if (!locallyEnded) {   //&& tmp != null
+                    	fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
+                       doc = allDocuments.get(tmp.getFileName());
+                      
+                       for (Field field :fields) {
+                          doc.add(field);
+                       }
+                                             
+                       fields=null;
+                    }
+                   
+                } catch (InterruptedException e) {
+                    log.severe(e.getMessage());
+                } 
+            }
+        }
+    }
+    
+    class ConsumerForOrbFreakFeature implements Runnable {
         private AbstractLocalDocumentBuilder documentBuilder;
         private ExtractorItem localExtractorItem;
         private LinkedList<Cluster[]> clusters;
@@ -1096,10 +1183,16 @@ public class ParallelIndexer implements Runnable {
     		BufferedImage image=null;
             try {
 				image=ImageIO.read(new File(path));
+				 if (Math.max(image.getHeight(), image.getWidth()) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
+			            image = ImageUtils.scaleImage(image, DocumentBuilder.MAX_IMAGE_DIMENSION);
+			        }
 				result[0] = new StoredField("height",image.getHeight());
 				result[1] = new StoredField("width",image.getWidth());
+				System.out.println("height"+image.getHeight());
+				System.out.println("width"+image.getWidth());
 				image.flush();
-				image=null;
+				image=null; 
+				
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
@@ -1129,14 +1222,33 @@ public class ParallelIndexer implements Runnable {
     		MatOfKeyPoint keypoints = new MatOfKeyPoint();
     		Mat descriptors = new Mat();
     		List<KeyPoint> myKeys = null;
-
+    		
     		Mat matRGB =  Highgui.imread(path);
+    		
+    		Size s= matRGB.size();
+    		
+    		 if (Math.max(matRGB.size().height,matRGB.size().width) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
+    			 double originalWidth = matRGB.size().height;
+    		     double originalHeight = matRGB.size().width;
+    		     double scaleFactor = 0.0;
+    		     if (originalWidth > originalHeight) {
+    		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalWidth);
+    		     }
+    		       else {
+    		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalHeight);
+    		     }
+    		     s.width=s.width*scaleFactor;
+    		     s.height=s.height*scaleFactor;
+    		     Imgproc.resize(matRGB, matRGB,s);
+ 	        }
+    		
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
+    		   
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
+    		
 			try {
 				// or BGR?
 				//lock.lock();
-				log.severe("detect : "+path);
 				detector.detect(matGray, keypoints);
 				//System.out.println("detect"+keypoints.total());
 
@@ -1146,8 +1258,6 @@ public class ParallelIndexer implements Runnable {
 					keypoints.release();
 					matRGB.release();
 					matGray.release();
-					detector.release();
-                			extractor.release();
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
@@ -1156,7 +1266,7 @@ public class ParallelIndexer implements Runnable {
 					
 					return result;
 				}
-				log.severe("compute : "+path);
+               
 				extractor.compute(matGray, keypoints, descriptors);
 
 				 //System.out.println("compute"+keypoints.total());
@@ -1166,16 +1276,15 @@ public class ParallelIndexer implements Runnable {
 					keypoints.release();
 					matRGB.release();
 					matGray.release();
-					detector.release();
-                			extractor.release();
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
 					matGray = null;
 					
+					
 					return result;
 				}
-   				log.severe("to list : "+path);
+
 				myKeys = keypoints.toList();
 
 			} catch (Exception e) {
@@ -1186,7 +1295,7 @@ public class ParallelIndexer implements Runnable {
 				//System.out.println("errer image" + path);
 
 			}
-    			log.severe("store field : "+path);
+    		
     		
     		result[2]=new StoredField("numOfFeatures", myKeys.size());
 
@@ -1232,18 +1341,16 @@ public class ParallelIndexer implements Runnable {
     		keypoints.release();
     		matRGB.release();
     		matGray.release();
-		detector.release();
-		extractor.release();
-		descriptors = null;
-		keypoints = null;
-		matRGB = null;
-		matGray = null;
-		myKeys = null;	
-    		
-		return result;
+			descriptors = null;
+			keypoints = null;
+			matRGB = null;
+			matGray = null;
+			
+    		return result;
         }
         
-        public ConsumerForLocalSample(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
+        
+        public ConsumerForOrbFreakFeature(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
             ExtractorItem tmpExtractorItem = extractorItem.clone();
             if (extractorItem.isLocal())
                 documentBuilder = new LocalDocumentBuilder(tmpExtractorItem, clusters, aggregator);
@@ -1272,14 +1379,10 @@ public class ParallelIndexer implements Runnable {
                     else overallCount++;
                     
                     if (!locallyEnded) {   //&& tmp != null
-                       fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
-                       doc = allDocuments.get(tmp.getFileName());
+                       
+                    	doc= allDocuments.get(tmp.getFileName());
                         
-                       for (Field field : fields) {
-                          doc.add(field);
-                       }
-                      
-                        
+                    	 System.out.println("feadoc");                                            
                        fields = this.extractFeatures(tmp.getFileName());
 
                        for (Field field : fields) {
