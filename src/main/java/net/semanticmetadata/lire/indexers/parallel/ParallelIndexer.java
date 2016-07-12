@@ -1242,8 +1242,8 @@ public class ParallelIndexer implements Runnable {
     		     Imgproc.resize(matRGB, matRGB,s);
  	        }
     		 
-    		result[0] = new StoredField("height",s.height);
-    		result[1] = new StoredField("width",s.width);
+    		result[0] = new StoredField("height",(int)s.height);
+    		result[1] = new StoredField("width",(int)s.width);
 				 
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
     		   
