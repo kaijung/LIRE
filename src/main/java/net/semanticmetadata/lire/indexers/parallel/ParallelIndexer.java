@@ -134,7 +134,7 @@ public class ParallelIndexer implements Runnable {
 
     private ConcurrentHashMap<String, List<? extends LocalFeature>> conSampleMap;
     
-    private ConcurrentHashMap<String,  List<Field[]>> conSampleMap_Orb;
+    private ConcurrentHashMap<String,  Field[]> conSampleMap_Orb;
 
     private Class<? extends AbstractAggregator> aggregator = BOVW.class;
 
@@ -743,7 +743,7 @@ public class ParallelIndexer implements Runnable {
                 sampleImages = selectVocabularyDocs(numImages, capacity);
                 numImages = sampleImages.size();
                 conSampleMap = new ConcurrentHashMap<String, List<? extends LocalFeature>>(numImages);
-                conSampleMap_Orb = new ConcurrentHashMap<String, List<Field[]>>(numImages);
+                conSampleMap_Orb = new ConcurrentHashMap<String, Field[]>(numImages);
                 sample(LocalExtractorsAndCodebooks);
                 sample(SimpleExtractorsAndCodebooks);
                 conSampleMap.clear();
@@ -1084,16 +1084,16 @@ public class ParallelIndexer implements Runnable {
         }
     }
     class ProducerForOrbFreakFeature implements Runnable {
-        private ConcurrentHashMap<String, List<Field[]>>localSampleList;
+        private ConcurrentHashMap<String, Field[]>localSampleList;
 
-        public ProducerForOrbFreakFeature(ConcurrentHashMap<String, List<Field[]>> localSampleList) {
+        public ProducerForOrbFreakFeature(ConcurrentHashMap<String, Field[]> localSampleList) {
             this.localSampleList = localSampleList;
             overallCount = 0;
             queue.clear();
         }
 
         public void run() {
-            for (Entry<String, List<Field[]>> listEntry : localSampleList.entrySet()) {
+            for (Entry<String, Field[]> listEntry : localSampleList.entrySet()) {
                 try {
                     queue_orb.put(new WorkItem_Orb(listEntry.getKey(), listEntry.getValue()));
                 } catch (InterruptedException e) {
@@ -1101,10 +1101,10 @@ public class ParallelIndexer implements Runnable {
                 }
             }
             String path = null;
-            List<Field[]> listOfFeatures = null;
+            Field[] Features = null;
             for (int i = 0; i < numOfThreads * 3; i++) {
                 try {
-                    queue_orb.put(new WorkItem_Orb(path, listOfFeatures));
+                    queue_orb.put(new WorkItem_Orb(path, Features));
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
@@ -1166,7 +1166,7 @@ public class ParallelIndexer implements Runnable {
             this.extractorItem = extractorItem.clone();
             this.locallyEnded = false;
         }
- private LinkedList<Field[]> extractFeatures(String path){
+ private Field[] extractFeatures(String path){
 	 
             Field[] result = new Field[6];       	
         	FeatureDetector detector;
@@ -1231,7 +1231,7 @@ public class ParallelIndexer implements Runnable {
 					keypoints = null;
 					matRGB = null;
 					matGray = null;
-					return listfeatures;
+					return result;
 				}
 				log.severe("compute : "+path);
 				extractor.compute(matGray, keypoints, descriptors);
@@ -1248,7 +1248,7 @@ public class ParallelIndexer implements Runnable {
 					matRGB = null;
 					matGray = null;
 					
-					return listfeatures;
+					return result;
 				}
    				log.severe("to list : "+path);
 				myKeys = keypoints.toList();
@@ -1300,7 +1300,7 @@ public class ParallelIndexer implements Runnable {
     		result[3]=new StoredField("rowsOfDesc", rows);
     		result[4]=new StoredField("colsOfDesc", cols);
        		result[5]=new StoredField("features", features);
-       		listfeatures.add(result);
+       		
     		desc =null;
     		features=null;
     		descriptors.release();
@@ -1313,7 +1313,7 @@ public class ParallelIndexer implements Runnable {
 		matGray = null;
 		myKeys = null;	
     		
-		return listfeatures;
+		return result;
         }
 
         public void run() {
@@ -1556,7 +1556,66 @@ public class ParallelIndexer implements Runnable {
             }
         }
     }
+    class ConsumerForOrbFreakFeature implements Runnable {
+        private AbstractLocalDocumentBuilder documentBuilder;
+        private ExtractorItem localExtractorItem;
+        private LinkedList<Cluster[]> clusters;
+        private boolean locallyEnded;
+        private boolean keypointZero;
+        //private Lock lock = new ReentrantLock();
+     
+        public ConsumerForOrbFreakFeature(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
+            ExtractorItem tmpExtractorItem = extractorItem.clone();
+            if (extractorItem.isLocal())
+                documentBuilder = new LocalDocumentBuilder(tmpExtractorItem, clusters, aggregator);
+                
+            else if (extractorItem.isSimple())
+                documentBuilder = new SimpleDocumentBuilder(tmpExtractorItem, clusters, aggregator);
+            else throw new UnsupportedOperationException("Something is wrong!! (ConsumerForLocalSample)");
 
+            this.localExtractorItem = tmpExtractorItem;
+            this.clusters = clusters;
+            this.locallyEnded = false;
+            this.keypointZero=false;
+        }
+
+        public void run() {
+            WorkItem_Orb tmp;
+            Field[] fields;
+            Document doc;
+                              
+            while (!locallyEnded) {
+                try {
+                    tmp = queue_orb.take();
+                   
+       			    
+                    if (tmp.getFileName() == null) locallyEnded = true;
+                    else overallCount++;
+                    
+                    if (!locallyEnded) {   //&& tmp != null
+                       //fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
+                       doc = allDocuments.get(tmp.getFileName());
+                        
+                       //for (Field field : fields) {
+                         // doc.add(field);
+                       //}
+                      
+                        
+                       fields = tmp.getFeatures();
+
+                       for (Field field : fields) {
+                           doc.add(field);
+                       }                       
+                        //doc.add( new StoredField("orbfreakfeature",bytes)); 
+                       fields=null;
+                    }
+                   
+                } catch (InterruptedException e) {
+                    log.severe(e.getMessage());
+                } 
+            }
+        }
+    }
     class ConsumerForGlobalSample implements Runnable {
         private GlobalDocumentBuilder globalDocumentBuilder;
         private boolean locallyEnded;

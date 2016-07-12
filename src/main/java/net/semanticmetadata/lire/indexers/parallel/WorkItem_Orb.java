@@ -9,19 +9,15 @@ import net.semanticmetadata.lire.imageanalysis.features.LocalFeature;
 public class WorkItem_Orb {
     private byte[] buffer;
     private String fileName;
-    private List<Field[]> listOfFeatures;
+    private Field[] Features;
+	public WorkItem_Orb(String path, Field[] features) {
+		// TODO Auto-generated constructor stub
+		this.fileName=path;
+		this.Features=features;
+	}
 	public byte[] getBuffer() {
 		return buffer;
 	}
-	public WorkItem_Orb(String path, byte[] buffer) {
-        this.fileName = path;
-        this.buffer = buffer;
-    }
-
-    public WorkItem_Orb(String path, List<Field[]> listOfFeatures) {
-        this.fileName = path;
-        this.listOfFeatures = listOfFeatures;
-    }
 	public void setBuffer(byte[] buffer) {
 		this.buffer = buffer;
 	}
@@ -31,10 +27,12 @@ public class WorkItem_Orb {
 	public void setFileName(String fileName) {
 		this.fileName = fileName;
 	}
-	public List<Field[]> getListOfFeatures() {
-		return listOfFeatures;
+	public Field[] getFeatures() {
+		return Features;
 	}
-	public void setListOfFeatures(List<Field[]> listOfFeatures) {
-		this.listOfFeatures = listOfFeatures;
+	public void setFeatures(Field[] features) {
+		Features = features;
 	}
+	
+
 }
