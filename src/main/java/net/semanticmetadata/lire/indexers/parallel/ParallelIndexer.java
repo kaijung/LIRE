@@ -968,7 +968,7 @@ public class ParallelIndexer implements Runnable {
                 p.start();
                 start = System.currentTimeMillis();
                 for (int i = 0; i < numOfThreads; i++) {
-                    c = new Thread(new ConsumerForLocalSample(extractorItem, mapWithClassesAndCodebooks.get(extractorItem)));
+                    c = new Thread(new ConsumerForOrbFreakFeature(extractorItem, mapWithClassesAndCodebooks.get(extractorItem)));
                     threads.add(c);
                     c.start();
                 }
