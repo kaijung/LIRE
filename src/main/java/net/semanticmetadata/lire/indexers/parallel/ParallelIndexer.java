@@ -1179,7 +1179,7 @@ public class ParallelIndexer implements Runnable {
         	DescriptorExtractor extractor;
     		detector = FeatureDetector.create(FeatureDetector.ORB);
     		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
-    		
+/*    		
     		BufferedImage image=null;
             try {
 				image=ImageIO.read(new File(path));
@@ -1197,7 +1197,7 @@ public class ParallelIndexer implements Runnable {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
-    		
+*/    		
 			File temp;
 			try {
 				temp = File.createTempFile("tempFile", ".tmp");
@@ -1206,7 +1206,7 @@ public class ParallelIndexer implements Runnable {
 				writer.write(orbSettings);
 				writer.close();
 				detector.read(temp.getPath());
-				String freakSettings = "%YAML:1.0 \npatternScale: 22.0 \nnOctaves: 8 \norientationNormalized : True \nscaleNormalized : True\n";
+				String freakSettings = "%YAML:1.0 \npatternScale: 22.5 \nnOctaves: 4 \norientationNormalized : True \nscaleNormalized : True\n";
 
 				writer = new FileWriter(temp, false);
 				writer.write(freakSettings);
@@ -1223,11 +1223,11 @@ public class ParallelIndexer implements Runnable {
     		Mat descriptors = new Mat();
     		List<KeyPoint> myKeys = null;
     		
-    		Mat matRGB =  Highgui.imread(path);
+    		Mat matRGB =  Highgui.imread(path,Highgui.CV_LOAD_IMAGE_COLOR);
     		
     		Size s= matRGB.size();
     		
-    		 if (Math.max(matRGB.size().height,matRGB.size().width) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
+    		if (Math.max(matRGB.size().height,matRGB.size().width) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
     			 double originalWidth = matRGB.size().height;
     		     double originalHeight = matRGB.size().width;
     		     double scaleFactor = 0.0;
@@ -1241,7 +1241,10 @@ public class ParallelIndexer implements Runnable {
     		     s.height=s.height*scaleFactor;
     		     Imgproc.resize(matRGB, matRGB,s);
  	        }
-    		
+    		 
+    		result[0] = new StoredField("height",s.height);
+    		result[1] = new StoredField("width",s.width);
+				 
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
     		   
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
@@ -1345,6 +1348,8 @@ public class ParallelIndexer implements Runnable {
 			keypoints = null;
 			matRGB = null;
 			matGray = null;
+			myKeys.clear();
+			myKeys = null;
 			
     		return result;
         }
