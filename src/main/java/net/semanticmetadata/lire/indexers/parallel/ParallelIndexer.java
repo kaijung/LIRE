@@ -1348,7 +1348,7 @@ public class ParallelIndexer implements Runnable {
 			keypoints = null;
 			matRGB = null;
 			matGray = null;
-			myKeys.clear();
+			//myKeys.clear();
 			myKeys = null;
 			
     		return result;
