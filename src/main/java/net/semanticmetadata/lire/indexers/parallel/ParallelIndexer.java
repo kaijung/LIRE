@@ -60,6 +60,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfKeyPoint;
+import org.opencv.core.Size;
 import org.opencv.features2d.DescriptorExtractor;
 import org.opencv.features2d.FeatureDetector;
 import org.opencv.features2d.KeyPoint;
@@ -1174,7 +1175,7 @@ public class ParallelIndexer implements Runnable {
     		detector = FeatureDetector.create(FeatureDetector.ORB);
     		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
     		LinkedList<Field[]> listfeatures = new LinkedList<Field[]>();;
-    		BufferedImage image=null;
+    		/*BufferedImage image=null;
             try {
 				image=ImageIO.read(new File(path));
 				result[0] = new StoredField("height",image.getHeight());
@@ -1184,7 +1185,7 @@ public class ParallelIndexer implements Runnable {
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
-			}
+			}*/
     		
 			File temp;
 			try {
@@ -1194,7 +1195,7 @@ public class ParallelIndexer implements Runnable {
 				writer.write(orbSettings);
 				writer.close();
 				detector.read(temp.getPath());
-				String freakSettings = "%YAML:1.0 \npatternScale: 22.0 \nnOctaves: 8 \norientationNormalized : True \nscaleNormalized : True\n";
+				String freakSettings = "%YAML:1.0 \npatternScale: 22.5 \nnOctaves: 4 \norientationNormalized : True \nscaleNormalized : True\n";
 
 				writer = new FileWriter(temp, false);
 				writer.write(freakSettings);
@@ -1210,8 +1211,25 @@ public class ParallelIndexer implements Runnable {
     		MatOfKeyPoint keypoints = new MatOfKeyPoint();
     		Mat descriptors = new Mat();
     		List<KeyPoint> myKeys = null;
+            Mat matRGB =  Highgui.imread(path,Highgui.CV_LOAD_IMAGE_COLOR);
+    		Size s= matRGB.size();
+    		if (Math.max(matRGB.size().height,matRGB.size().width) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
+   			 double originalWidth = matRGB.size().height;
+   		     double originalHeight = matRGB.size().width;
+   		     double scaleFactor = 0.0;
+   		     if (originalWidth > originalHeight) {
+   		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalWidth);
+   		     }
+   		       else {
+   		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalHeight);
+   		     }
+   		     s.width=s.width*scaleFactor;
+   		     s.height=s.height*scaleFactor;
+   		     Imgproc.resize(matRGB, matRGB,s);
+	        }
+    		result[0] = new StoredField("height",(int)s.height);
+    		result[1] = new StoredField("width",(int)s.width);
 
-    		Mat matRGB =  Highgui.imread(path);
     		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
     		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
 			try {
@@ -1311,7 +1329,9 @@ public class ParallelIndexer implements Runnable {
 		keypoints = null;
 		matRGB = null;
 		matGray = null;
-		myKeys = null;	
+		//myKeys.clear();
+		myKeys = null;
+
     		
 		return result;
         }
