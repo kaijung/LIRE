@@ -1212,6 +1212,7 @@ public class ParallelIndexer implements Runnable {
     		Mat descriptors = new Mat();
     		List<KeyPoint> myKeys = null;
             Mat matRGB =  Highgui.imread(path,Highgui.CV_LOAD_IMAGE_COLOR);
+            Mat resizeMatRGB = new Mat();
     		Size s= matRGB.size();
     		if (Math.max(matRGB.size().height,matRGB.size().width) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
    			 double originalWidth = matRGB.size().height;
@@ -1225,13 +1226,16 @@ public class ParallelIndexer implements Runnable {
    		     }
    		     s.width=s.width*scaleFactor;
    		     s.height=s.height*scaleFactor;
-   		     Imgproc.resize(matRGB, matRGB,s);
+   		     Imgproc.resize(matRGB, resizeMatRGB,s);
+	        }else{
+	        	resizeMatRGB=matRGB.clone();	
 	        }
+    		matRGB.release();
     		result[0] = new StoredField("height",(int)s.height);
     		result[1] = new StoredField("width",(int)s.width);
 
-    		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
-    		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
+    		Mat matGray = new Mat(resizeMatRGB.height(), resizeMatRGB.width(), CvType.CV_8UC1);
+    		Imgproc.cvtColor(resizeMatRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
 			try {
 				// or BGR?
 				//lock.lock();
@@ -1243,7 +1247,6 @@ public class ParallelIndexer implements Runnable {
 					log.severe("detect :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
-					matRGB.release();
 					matGray.release();
 					descriptors = null;
 					keypoints = null;
@@ -1259,7 +1262,6 @@ public class ParallelIndexer implements Runnable {
 					log.severe("compute :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
-					matRGB.release();
 					matGray.release();
 					descriptors = null;
 					keypoints = null;
