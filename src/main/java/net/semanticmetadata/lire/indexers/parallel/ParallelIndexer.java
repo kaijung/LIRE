@@ -1215,27 +1215,32 @@ public class ParallelIndexer implements Runnable {
             Mat resizeMatRGB = new Mat();
     		Size s= matRGB.size();
     		if (Math.max(matRGB.size().height,matRGB.size().width) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
-   			 double originalWidth = matRGB.size().height;
-   		     double originalHeight = matRGB.size().width;
-   		     double scaleFactor = 0.0;
-   		     if (originalWidth > originalHeight) {
-   		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalWidth);
-   		     }
-   		       else {
-   		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalHeight);
-   		     }
-   		     s.width=s.width*scaleFactor;
-   		     s.height=s.height*scaleFactor;
-   		     Imgproc.resize(matRGB, resizeMatRGB,s);
+	   			 double originalWidth = matRGB.size().height;
+	   		     double originalHeight = matRGB.size().width;
+	   		     double scaleFactor = 0.0;
+	   		     if (originalWidth > originalHeight) {
+	   		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalWidth);
+	   		     }
+	   		       else {
+	   		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalHeight);
+	   		     }
+	   		     s.width=s.width*scaleFactor;
+	   		     s.height=s.height*scaleFactor;
+	   		     Imgproc.resize(matRGB, resizeMatRGB,s);
 	        }else{
 	        	resizeMatRGB=matRGB.clone();	
 	        }
     		matRGB.release();
+    		matRGB = null;
+    		
     		result[0] = new StoredField("height",(int)s.height);
     		result[1] = new StoredField("width",(int)s.width);
 
     		Mat matGray = new Mat(resizeMatRGB.height(), resizeMatRGB.width(), CvType.CV_8UC1);
     		Imgproc.cvtColor(resizeMatRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
+    		resizeMatRGB.release();
+    		resizeMatRGB = null;
+    		
 			try {
 				// or BGR?
 				//lock.lock();
@@ -1250,24 +1255,24 @@ public class ParallelIndexer implements Runnable {
 					matGray.release();
 					descriptors = null;
 					keypoints = null;
-					matRGB = null;
 					matGray = null;
 					return result;
 				}
 				log.severe("compute : "+path);
 				extractor.compute(matGray, keypoints, descriptors);
-
+				
+				matGray.release();
+				matGray = null;				
+				
 				 //System.out.println("compute"+keypoints.total());
 				if (keypoints.total() == 0) {
 					log.severe("compute :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
-					matGray.release();
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
-					matGray = null;
-					
+				
 					return result;
 				}
    				log.severe("to list : "+path);
@@ -1275,7 +1280,7 @@ public class ParallelIndexer implements Runnable {
 
 			} catch (Exception e) {
 				   System.out.println(e);
-			  }
+			}
 			finally {
 				//lock.unlock();
 				//System.out.println("errer image" + path);
@@ -1325,17 +1330,12 @@ public class ParallelIndexer implements Runnable {
     		features=null;
     		descriptors.release();
     		keypoints.release();
-    		matRGB.release();
-    		matGray.release();
-		descriptors = null;
-		keypoints = null;
-		matRGB = null;
-		matGray = null;
-		//myKeys.clear();
-		myKeys = null;
+    		descriptors = null;
+    		keypoints = null;
+    		myKeys = null;
 
     		
-		return result;
+    		return result;
         }
 
         public void run() {
