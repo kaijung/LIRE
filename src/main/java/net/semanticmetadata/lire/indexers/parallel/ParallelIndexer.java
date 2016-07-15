@@ -1207,7 +1207,6 @@ public class ParallelIndexer implements Runnable {
 				writer.close();
 				detector.read(temp.getPath());
 				String freakSettings = "%YAML:1.0 \npatternScale: 22.5 \nnOctaves: 4 \norientationNormalized : True \nscaleNormalized : True\n";
-
 				writer = new FileWriter(temp, false);
 				writer.write(freakSettings);
 				writer.close();			
@@ -1244,17 +1243,16 @@ public class ParallelIndexer implements Runnable {
     		else {
     			resizeMatRGB = matRGB.clone();
     			
-    		}
-    		
+    		}    		
     		matRGB.release();
-    		
+    		matRGB=null;
     		result[0] = new StoredField("height",(int)s.height);
     		result[1] = new StoredField("width",(int)s.width);
 				 
     		Mat matGray = new Mat(resizeMatRGB.height(), resizeMatRGB.width(), CvType.CV_8UC1);
-    		   
     		Imgproc.cvtColor(resizeMatRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
-    		
+    		resizeMatRGB.release();
+    		resizeMatRGB=null;
 			try {
 				// or BGR?
 				//lock.lock();
@@ -1268,27 +1266,24 @@ public class ParallelIndexer implements Runnable {
 					matGray.release();
 					descriptors = null;
 					keypoints = null;
-					matRGB = null;
-					matGray = null;
-					
-					
+					matGray = null;				
 					return result;
 				}
                
 				extractor.compute(matGray, keypoints, descriptors);
+				matGray.release();
+				matGray = null;				
+
 
 				 //System.out.println("compute"+keypoints.total());
 				if (keypoints.total() == 0) {
 					log.severe("compute :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
-					matGray.release();
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
-					matGray = null;
-					
-					
+							
 					return result;
 				}
 
@@ -1346,12 +1341,8 @@ public class ParallelIndexer implements Runnable {
     		features=null;
     		descriptors.release();
     		keypoints.release();
-    		matGray.release();
 			descriptors = null;
 			keypoints = null;
-			matRGB = null;
-			matGray = null;
-			//myKeys.clear();
 			myKeys = null;
 			
     		return result;
