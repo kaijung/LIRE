@@ -1381,13 +1381,14 @@ public class ParallelIndexer implements Runnable {
                        
                     	doc= allDocuments.get(tmp.getFileName());
                         
-                    	 System.out.println("feadoc");                                            
+                    System.out.println(""+overallCount+" done!");                                            
                        fields = this.extractFeatures(tmp.getFileName());
 
                        for (Field field : fields) {
                            doc.add(field);
                        }                       
                         //doc.add( new StoredField("orbfreakfeature",bytes)); 
+                       tmp = null;
                        fields=null;
                     }
                    
