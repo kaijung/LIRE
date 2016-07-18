@@ -942,7 +942,7 @@ public class ParallelIndexer implements Runnable {
                 end = System.currentTimeMillis() - start;
                 System.out.printf("Analyzed %d images in %s ~ %3.2f ms each.\n", overallCount, convertTime(end), ((overallCount > 0) ? ((float) end / (float) overallCount) : -1f));
                 threads.clear();
-                p = new Thread(new ProducerForLocalSample(conSampleMap));
+                p = new Thread(new ProducerForOrbFreakFeature(conSampleMap));
                 p.start();
                 start = System.currentTimeMillis();
                 for (int i = 0; i < numOfThreads; i++) {
@@ -1061,7 +1061,35 @@ public class ParallelIndexer implements Runnable {
             }
         }
     }
+    class ProducerForOrbFreakFeature implements Runnable {
+        private ConcurrentHashMap<String, List<? extends LocalFeature>> localSampleList;
 
+        public ProducerForOrbFreakFeature(ConcurrentHashMap<String, List<? extends LocalFeature>> localSampleList) {
+            this.localSampleList = localSampleList;
+            overallCount = 0;
+            queue.clear();
+        }
+
+        public void run() {
+        	List<? extends LocalFeature> listOfFeatures = null;
+            for (Map.Entry<String, List<? extends LocalFeature>> listEntry : localSampleList.entrySet()) {
+                try {
+                    queue.put(new WorkItem(listEntry.getKey(), listOfFeatures));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            String path = null;
+            //List<? extends LocalFeature> listOfFeatures = null;
+            for (int i = 0; i < numOfThreads * 3; i++) {
+                try {
+                    queue.put(new WorkItem(path, listOfFeatures));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
     class ExtractorForLocalSample implements Runnable {
         private AbstractLocalDocumentBuilder documentBuilder;
         private ExtractorItem extractorItem;
