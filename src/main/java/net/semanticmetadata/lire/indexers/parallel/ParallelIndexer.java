@@ -1359,7 +1359,9 @@ public class ParallelIndexer implements Runnable {
     			
     			System.arraycopy(feature, 0, features, feature.length * i, feature.length);    	
     			feature = null;
-    			
+    			x = null;
+    			y = null;
+    			size = null;
     		}
     		result[3]=new StoredField("rowsOfDesc", rows);
     		result[4]=new StoredField("colsOfDesc", cols);
