@@ -1375,6 +1375,8 @@ public class ParallelIndexer implements Runnable {
 			keypoints = null;
 			myKeys = null;
 			
+			detector = null;
+			extractor =null;
     		return result;
         }
         
