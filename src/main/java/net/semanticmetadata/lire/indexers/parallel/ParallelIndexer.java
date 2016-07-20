@@ -1372,9 +1372,7 @@ public class ParallelIndexer implements Runnable {
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
-					
-					
-				
+					matGray = null;
 					return result;
 				}
 
@@ -1424,7 +1422,8 @@ public class ParallelIndexer implements Runnable {
     			feature = null;
     			x = null;
     			y = null;
-    			size = null;  			
+                size=null;
+
     		}
     		result[3]=new StoredField("rowsOfDesc", rows);
     		result[4]=new StoredField("colsOfDesc", cols);
@@ -1437,9 +1436,9 @@ public class ParallelIndexer implements Runnable {
 			descriptors = null;
 			keypoints = null;
 			myKeys = null;
-			
-			detector=null;
-			extractor=null;
+			detector = null;
+			extractor =null;
+
     		return result;
         }
         
