@@ -1200,13 +1200,14 @@ public class ParallelIndexer implements Runnable {
         private boolean locallyEnded;
         private boolean keypointZero;
         //private Lock lock = new ReentrantLock();
+        private FeatureDetector detector;
+        private DescriptorExtractor extractor;
+    	
         private Field[] extractFeatures(String path){
         	
             Field[] result = new Field[6];       	
-        	FeatureDetector detector;
-        	DescriptorExtractor extractor;
-    		detector = FeatureDetector.create(FeatureDetector.ORB);
-    		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
+
+
 /*    		
     		BufferedImage image=null;
             try {
@@ -1375,8 +1376,8 @@ public class ParallelIndexer implements Runnable {
 			keypoints = null;
 			myKeys = null;
 			
-			detector = null;
-			extractor =null;
+			//detector = null;
+			//extractor =null;
     		return result;
         }
         
@@ -1394,6 +1395,9 @@ public class ParallelIndexer implements Runnable {
             this.clusters = clusters;
             this.locallyEnded = false;
             this.keypointZero=false;
+            
+    		detector = FeatureDetector.create(FeatureDetector.ORB);
+    		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
         }
 
         public void run() {
