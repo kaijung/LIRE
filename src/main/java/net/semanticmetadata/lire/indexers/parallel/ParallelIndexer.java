@@ -1288,24 +1288,7 @@ public class ParallelIndexer implements Runnable {
 				e1.printStackTrace();
 			}
 */    		
-			File temp;
-			try {
-				temp = File.createTempFile("tempFile", ".tmp");
-				String orbSettings = "%YAML:1.0\nname: \"Feature2D.ORB\"\nWTA_K: 2\nedgeThreshold: 31\nfirstLevel: 0\nnFeatures: 3500 \nnLevels: 8 \npatchSize: 31\nscaleFactor: 1.20\nscoreType: 0\n";
-				FileWriter writer = new FileWriter(temp, false);
-				writer.write(orbSettings);
-				writer.close();
-				detector.read(temp.getPath());
-				String freakSettings = "%YAML:1.0 \npatternScale: 22.5 \nnOctaves: 4 \norientationNormalized : True \nscaleNormalized : True\n";
-				writer = new FileWriter(temp, false);
-				writer.write(freakSettings);
-				writer.close();			
-				extractor.read(temp.getPath());
-				temp.deleteOnExit();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
+
         	
         	
     		MatOfKeyPoint keypoints = new MatOfKeyPoint();
@@ -1452,6 +1435,26 @@ public class ParallelIndexer implements Runnable {
             
     		detector = FeatureDetector.create(FeatureDetector.ORB);
     		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
+    		
+			File temp;
+			try {
+				temp = File.createTempFile("tempFile", ".tmp");
+				String orbSettings = "%YAML:1.0\nname: \"Feature2D.ORB\"\nWTA_K: 2\nedgeThreshold: 31\nfirstLevel: 0\nnFeatures: 3500 \nnLevels: 8 \npatchSize: 31\nscaleFactor: 1.20\nscoreType: 0\n";
+				FileWriter writer = new FileWriter(temp, false);
+				writer.write(orbSettings);
+				writer.close();
+				detector.read(temp.getPath());
+				String freakSettings = "%YAML:1.0 \npatternScale: 22.5 \nnOctaves: 4 \norientationNormalized : True \nscaleNormalized : True\n";
+				writer = new FileWriter(temp, false);
+				writer.write(freakSettings);
+				writer.close();			
+				extractor.read(temp.getPath());
+				temp.deleteOnExit();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    		
         }
 
         public void run() {
