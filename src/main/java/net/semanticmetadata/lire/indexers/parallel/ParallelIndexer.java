@@ -141,7 +141,7 @@ public class ParallelIndexer implements Runnable {
     private ConcurrentHashMap<String, List<? extends LocalFeature>> conSampleMap;
 
     private Class<? extends AbstractAggregator> aggregator = BOVW.class;
-
+    
     private HashMap<String, Document> allDocuments;
 
     private ImagePreprocessor imagePreprocessor;
@@ -156,6 +156,9 @@ public class ParallelIndexer implements Runnable {
         String imageDirectory = null;
         File imageList = null;
         int numThreads = 10;
+        int[] numOfClusters = new int[] {512};
+        Class<? extends AbstractAggregator> aggregator = BOVW.class;
+        int numOfDocsForVocabulary=300;
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             if (arg.startsWith("-i")) {  // index
@@ -184,9 +187,16 @@ public class ParallelIndexer implements Runnable {
                 if ((i + 1) < args.length) {
                     imageDirectory = args[i + 1];
                 }
-            }
+            }else if (arg.startsWith("-N")) { // number of Threads
+                if ((i + 1) < args.length) {
+                    try {
+                    	numOfDocsForVocabulary = Integer.parseInt(args[i + 1]);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Could not read numOfDocsForVocabulary: " + args[i + 1] + "\nUsing default value " + numOfDocsForVocabulary);
+                    }
+                }
         }
-
+        }
         if (indexPath == null) {
             printHelp();
             System.exit(-1);
@@ -198,7 +208,8 @@ public class ParallelIndexer implements Runnable {
         if (imageList != null) {
             p = new ParallelIndexer(numThreads, indexPath, imageList);
         } else {
-            p = new ParallelIndexer(numThreads, indexPath, imageDirectory);
+            //p = new ParallelIndexer(numThreads, indexPath, imageDirectory);
+            p = new ParallelIndexer(numThreads, indexPath, imageDirectory, numOfClusters, numOfDocsForVocabulary, aggregator);
         }
 //        p.addExtractor(ACCID.class);
         p.addExtractor(EdgeHistogram.class);
@@ -855,7 +866,7 @@ public class ParallelIndexer implements Runnable {
         }
     }
     private void fillSampleWithOrbFreakFeature() {
-        System.out.println("Filling GlobalFeatures....");
+        System.out.println("Filling OrbFreakFeature....");
         System.out.printf("Indexing %d images\n", sampleImages.size());
         long start = System.currentTimeMillis();
         try {
