@@ -855,7 +855,7 @@ public class ParallelIndexer implements Runnable {
         }
     }
     private void fillSampleWithOrbFreakFeature() {
-        System.out.println("Filling OrbFreakFeatures....");
+        System.out.println("Filling GlobalFeatures....");
         System.out.printf("Indexing %d images\n", sampleImages.size());
         long start = System.currentTimeMillis();
         try {
