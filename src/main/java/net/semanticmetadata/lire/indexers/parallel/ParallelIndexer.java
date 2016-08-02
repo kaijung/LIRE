@@ -45,11 +45,14 @@ import net.semanticmetadata.lire.imageanalysis.features.GlobalFeature;
 import net.semanticmetadata.lire.imageanalysis.features.LocalFeature;
 import net.semanticmetadata.lire.imageanalysis.features.LocalFeatureExtractor;
 import net.semanticmetadata.lire.imageanalysis.features.global.CEDD;
+import net.semanticmetadata.lire.imageanalysis.features.global.EdgeHistogram;
 import net.semanticmetadata.lire.imageanalysis.features.global.FCTH;
 import net.semanticmetadata.lire.imageanalysis.features.global.JCD;
+import net.semanticmetadata.lire.imageanalysis.features.local.opencvfeatures.CvOrbFreakExtractor;
 import net.semanticmetadata.lire.imageanalysis.features.local.opencvfeatures.CvOrbFreakFeature;
 import net.semanticmetadata.lire.imageanalysis.features.local.simple.SimpleExtractor;
 import net.semanticmetadata.lire.utils.FileUtils;
+import net.semanticmetadata.lire.utils.ImageUtils;
 import net.semanticmetadata.lire.utils.LuceneUtils;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
@@ -57,6 +60,7 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.document.TextField;
 import org.apache.lucene.index.IndexWriter;
+import org.opencv.core.Core;
 import org.opencv.core.CvType;
 import org.opencv.core.Mat;
 import org.opencv.core.MatOfKeyPoint;
@@ -84,7 +88,7 @@ import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.logging.Logger;
-
+import org.opencv.core.Size;
 //import net.semanticmetadata.lire.imageanalysis.features.global.ACCID;
 
 /**
@@ -121,11 +125,11 @@ public class ParallelIndexer implements Runnable {
     private String imageDirectory, indexPath;
     private File imageList = null;
     private List<String> allImages, sampleImages;
-
+    private Document featuredoc;
     private int numOfDocsForCodebooks = 300;
     private int[] numOfClusters = new int[]{512};
     private TreeSet<Integer> numOfClustersSet = new TreeSet<Integer>();
-
+    
     private HashSet<ExtractorItem> GlobalExtractors = new HashSet<ExtractorItem>(10); // default size (16)
     private HashMap<ExtractorItem, LinkedList<Cluster[]>> LocalExtractorsAndCodebooks = new HashMap<ExtractorItem, LinkedList<Cluster[]>>(10); // default size (16)
     private HashMap<ExtractorItem, LinkedList<Cluster[]>> SimpleExtractorsAndCodebooks = new HashMap<ExtractorItem, LinkedList<Cluster[]>>(10); // default size (16)
@@ -138,7 +142,7 @@ public class ParallelIndexer implements Runnable {
     private ConcurrentHashMap<String,  Field[]> conSampleMap_Orb;
 
     private Class<? extends AbstractAggregator> aggregator = BOVW.class;
-
+    
     private HashMap<String, Document> allDocuments;
 
     private ImagePreprocessor imagePreprocessor;
@@ -153,6 +157,9 @@ public class ParallelIndexer implements Runnable {
         String imageDirectory = null;
         File imageList = null;
         int numThreads = 10;
+        int[] numOfClusters = new int[] {512};
+        Class<? extends AbstractAggregator> aggregator = BOVW.class;
+        int numOfDocsForVocabulary=300;
         for (int i = 0; i < args.length; i++) {
             String arg = args[i];
             if (arg.startsWith("-i")) {  // index
@@ -181,9 +188,16 @@ public class ParallelIndexer implements Runnable {
                 if ((i + 1) < args.length) {
                     imageDirectory = args[i + 1];
                 }
-            }
+            }else if (arg.startsWith("-N")) { // number of Threads
+                if ((i + 1) < args.length) {
+                    try {
+                    	numOfDocsForVocabulary = Integer.parseInt(args[i + 1]);
+                    } catch (NumberFormatException e) {
+                        System.err.println("Could not read numOfDocsForVocabulary: " + args[i + 1] + "\nUsing default value " + numOfDocsForVocabulary);
+                    }
+                }
         }
-
+        }
         if (indexPath == null) {
             printHelp();
             System.exit(-1);
@@ -195,12 +209,18 @@ public class ParallelIndexer implements Runnable {
         if (imageList != null) {
             p = new ParallelIndexer(numThreads, indexPath, imageList);
         } else {
-            p = new ParallelIndexer(numThreads, indexPath, imageDirectory);
+            //p = new ParallelIndexer(numThreads, indexPath, imageDirectory);
+            p = new ParallelIndexer(numThreads, indexPath, imageDirectory, numOfClusters, numOfDocsForVocabulary, aggregator);
         }
 //        p.addExtractor(ACCID.class);
-        p.addExtractor(CEDD.class);
-        p.addExtractor(FCTH.class);
-        p.addExtractor(JCD.class);
+        p.addExtractor(EdgeHistogram.class);
+        //indexer.addExtractor(CEDD.class);
+        //indexer.addExtractor(FCTH.class);
+        //indexer.addExtractor(AutoColorCorrelogram.class);
+        //Local
+        //indexer.addExtractor(CvSurfExtractor.class);
+        //indexer.addExtractor(CvSiftExtractor.class);
+        p.addExtractor(CvOrbFreakExtractor.class);
         p.run();
     }
 
@@ -752,9 +772,12 @@ public class ParallelIndexer implements Runnable {
                 conSampleMap_Orb.clear();
                 conSampleMap_Orb = null;
                 if (GlobalExtractors.size() > 0) fillSampleWithGlobals();
+                fillSampleWithOrbFreakFeature();
                 flushDocuments();
+                
                 allDocuments.clear();
                 allDocuments = null;
+                
                 System.out.println("Indexing rest images....");
             } else System.out.println("No need for sampling and generating codebooks.....");
 
@@ -846,7 +869,35 @@ public class ParallelIndexer implements Runnable {
             e.printStackTrace();
         }
     }
-
+    private void fillSampleWithOrbFreakFeature() {
+        System.out.println("Filling OrbFreakFeature....");
+        System.out.printf("Indexing %d images\n", sampleImages.size());
+        long start = System.currentTimeMillis();
+        try {
+            Thread p, c, m;
+            p = new Thread(new ProducerForFileName(sampleImages));
+            p.start();
+            LinkedList<Thread> threads = new LinkedList<Thread>();
+            for (int i = 0; i < numOfThreads; i++) {
+                c = new Thread(new ConsumerForOrbFreakFeature());
+                c.start();
+                threads.add(c);
+            }
+            Monitoring monitoring = new Monitoring();
+            m = new Thread(monitoring);
+            m.start();
+            for (Thread thread : threads) {
+                thread.join();
+            }
+            monitoring.killMonitoring();
+            long end = System.currentTimeMillis() - start;
+            System.out.printf("Analyzed %d images in %s ~ %3.2f ms each.\n", overallCount, convertTime(end), ((overallCount > 0) ? ((float) end / (float) overallCount) : -1f));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+   
+   
     private void sample(HashMap<ExtractorItem, LinkedList<Cluster[]>> mapWithClassesAndCodebooks) {
         long start, end;
         LinkedList<Thread> threads = new LinkedList<Thread>();
@@ -943,7 +994,7 @@ public class ParallelIndexer implements Runnable {
 
                 threads.clear();
 
-
+                
                 p = new Thread(new ProducerForLocalSample(conSampleMap));
                 p.start();
                 start = System.currentTimeMillis();
@@ -965,6 +1016,7 @@ public class ParallelIndexer implements Runnable {
                 monitoring.killMonitoring();
                 end = System.currentTimeMillis() - start;
                 System.out.printf("Analyzed %d images in %s ~ %3.2f ms each.\n", overallCount, convertTime(end), ((overallCount > 0) ? ((float) end / (float) overallCount) : -1f));
+
                 p = new Thread(new ProducerForOrbFreakFeature(conSampleMap_Orb));
                 p.start();
                 start = System.currentTimeMillis();
@@ -986,6 +1038,7 @@ public class ParallelIndexer implements Runnable {
                 monitoring.killMonitoring();
                 end = System.currentTimeMillis() - start;
                 System.out.printf("Analyzed %d images in %s ~ %3.2f ms each.\n", overallCount, convertTime(end), ((overallCount > 0) ? ((float) end / (float) overallCount) : -1f));
+                threads.clear();                            
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -1055,7 +1108,50 @@ public class ParallelIndexer implements Runnable {
             }
         }
     }
+    class ProducerForFileName implements Runnable {
+        private List<String> localList;
 
+        public ProducerForFileName(List<String> localList) {
+            this.localList = localList;
+            overallCount = 0;
+            queue.clear();
+        }
+
+        public void run() {
+            File next;
+            byte[] buffer = null;
+            for (String path : localList) {
+                next = new File(path);
+                try {
+                    // option 1 --------------------
+//                    byte[] buffer = Files.readAllBytes(Paths.get(path)); // JDK 7 only!
+                    // option 2 --------------------
+//                    path = next.getCanonicalPath();
+//                    int fileSize = (int) next.length();
+//                    byte[] buffer = new byte[fileSize];
+//                    FileInputStream fis = new FileInputStream(next);
+//                    int tmp = fis.read(buffer);
+//                    assert(tmp == fileSize);
+//                    fis.close();
+                    // option 3 --------------------
+                    queue.put(new WorkItem(path, buffer));
+                    buffer=null;
+                    
+                } catch (Exception e) {
+                    System.err.println("Could not open " + path + ". " + e.getMessage());
+                }
+            }
+            String path = null;
+            
+            for (int i = 0; i < numOfThreads * 3; i++) {
+                try {
+                    queue.put(new WorkItem(path, buffer));
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
     class ProducerForLocalSample implements Runnable {
         private ConcurrentHashMap<String, List<? extends LocalFeature>> localSampleList;
 
@@ -1085,35 +1181,37 @@ public class ParallelIndexer implements Runnable {
         }
     }
     class ProducerForOrbFreakFeature implements Runnable {
-        private ConcurrentHashMap<String, Field[]>localSampleList;
 
-        public ProducerForOrbFreakFeature(ConcurrentHashMap<String, Field[]> localSampleList) {
+        private ConcurrentHashMap<String, List<? extends LocalFeature>> localSampleList;
+
+        public ProducerForOrbFreakFeature(ConcurrentHashMap<String, List<? extends LocalFeature>> localSampleList) {
             this.localSampleList = localSampleList;
             overallCount = 0;
             queue.clear();
         }
 
         public void run() {
-            for (Entry<String, Field[]> listEntry : localSampleList.entrySet()) {
+        	List<? extends LocalFeature> listOfFeatures = null;
+            for (Map.Entry<String, List<? extends LocalFeature>> listEntry : localSampleList.entrySet()) {
                 try {
-                    queue_orb.put(new WorkItem_Orb(listEntry.getKey(), listEntry.getValue()));
+                    queue.put(new WorkItem(listEntry.getKey(), listOfFeatures));
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
             String path = null;
-            Field[] Features = null;
+            //List<? extends LocalFeature> listOfFeatures = null;
             for (int i = 0; i < numOfThreads * 3; i++) {
                 try {
-                    queue_orb.put(new WorkItem_Orb(path, Features));
+                	
+                	
+                    queue.put(new WorkItem(path, listOfFeatures));
                 } catch (InterruptedException e) {
                     e.printStackTrace();
                 }
             }
         }
     }
-
-
     class ExtractorForLocalSample implements Runnable {
         private AbstractLocalDocumentBuilder documentBuilder;
         private ExtractorItem extractorItem;
@@ -1136,8 +1234,13 @@ public class ParallelIndexer implements Runnable {
                     if (tmp.getFileName() == null) locallyEnded = true;
                     else overallCount++;
                     if (!locallyEnded) {   //&& tmp != null
+                    	BufferedImage image = null;
                         b = new ByteArrayInputStream(tmp.getBuffer());
-                        BufferedImage image = ImageIO.read(b);
+                        try{
+                         image = ImageIO.read(b);
+                        } catch (Exception e){
+                        	System.out.println("error image"+tmp.getFileName());		
+                        }
                         if(imagePreprocessor != null){
                             image = imagePreprocessor.process(image);
                         }
@@ -1148,7 +1251,7 @@ public class ParallelIndexer implements Runnable {
                         image=null;
                         
                     }
-                } catch (InterruptedException | IOException e) {
+                } catch (InterruptedException e) {
                     log.severe(e.getMessage());
                 }
             }
@@ -1374,58 +1477,128 @@ public class ParallelIndexer implements Runnable {
         private boolean locallyEnded;
         private boolean keypointZero;
         //private Lock lock = new ReentrantLock();
+        
+        
+        
+        public ConsumerForLocalSample(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
+            ExtractorItem tmpExtractorItem = extractorItem.clone();
+            if (extractorItem.isLocal())
+                documentBuilder = new LocalDocumentBuilder(tmpExtractorItem, clusters, aggregator);
+                
+            else if (extractorItem.isSimple())
+                documentBuilder = new SimpleDocumentBuilder(tmpExtractorItem, clusters, aggregator);
+            else throw new UnsupportedOperationException("Something is wrong!! (ConsumerForLocalSample)");
+
+            this.localExtractorItem = tmpExtractorItem;
+            this.clusters = clusters;
+            this.locallyEnded = false;
+            this.keypointZero=false;
+        }
+
+        public void run() {
+            WorkItem tmp;
+            Field[] fields;
+            Document doc;
+                              
+            while (!locallyEnded) {
+                try {
+                    tmp = queue.take();
+                   
+       			    
+                    if (tmp.getFileName() == null) locallyEnded = true;
+                    else overallCount++;
+                    
+                    if (!locallyEnded) {   //&& tmp != null
+                    	fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
+                       doc = allDocuments.get(tmp.getFileName());
+                      
+                       for (Field field :fields) {
+                          doc.add(field);
+                       }
+                       tmp.getListOfFeatures().clear();                      
+                       fields=null;
+                    }
+                   
+                } catch (InterruptedException e) {
+                    log.severe(e.getMessage());
+                } 
+            }
+        }
+    }
+    
+    class ConsumerForOrbFreakFeature implements Runnable {
+        private AbstractLocalDocumentBuilder documentBuilder;
+        private boolean locallyEnded;
+        private boolean keypointZero;
+        //private Lock lock = new ReentrantLock();
+        private FeatureDetector detector;
+        private DescriptorExtractor extractor;
+    	
         private Field[] extractFeatures(String path){
         	
             Field[] result = new Field[6];       	
-        	FeatureDetector detector;
-        	DescriptorExtractor extractor;
-    		detector = FeatureDetector.create(FeatureDetector.ORB);
-    		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
-    		
+
+
+/*    		
     		BufferedImage image=null;
             try {
 				image=ImageIO.read(new File(path));
+				 if (Math.max(image.getHeight(), image.getWidth()) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
+			            image = ImageUtils.scaleImage(image, DocumentBuilder.MAX_IMAGE_DIMENSION);
+			        }
 				result[0] = new StoredField("height",image.getHeight());
 				result[1] = new StoredField("width",image.getWidth());
+				System.out.println("height"+image.getHeight());
+				System.out.println("width"+image.getWidth());
 				image.flush();
-				image=null;
+				image=null; 
+				
 			} catch (IOException e1) {
 				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
-    		
-			File temp;
-			try {
-				temp = File.createTempFile("tempFile", ".tmp");
-				String orbSettings = "%YAML:1.0\nname: \"Feature2D.ORB\"\nWTA_K: 2\nedgeThreshold: 31\nfirstLevel: 0\nnFeatures: 3500 \nnLevels: 8 \npatchSize: 31\nscaleFactor: 1.20\nscoreType: 0\n";
-				FileWriter writer = new FileWriter(temp, false);
-				writer.write(orbSettings);
-				writer.close();
-				detector.read(temp.getPath());
-				String freakSettings = "%YAML:1.0 \npatternScale: 22.0 \nnOctaves: 8 \norientationNormalized : True \nscaleNormalized : True\n";
+*/    		
 
-				writer = new FileWriter(temp, false);
-				writer.write(freakSettings);
-				writer.close();			
-				extractor.read(temp.getPath());
-				temp.deleteOnExit();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
         	
         	
     		MatOfKeyPoint keypoints = new MatOfKeyPoint();
     		Mat descriptors = new Mat();
     		List<KeyPoint> myKeys = null;
-
-    		Mat matRGB =  Highgui.imread(path);
-    		Mat matGray = new Mat(matRGB.height(), matRGB.width(), CvType.CV_8UC1);
-    		Imgproc.cvtColor(matRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
+    		
+    		Mat matRGB =  Highgui.imread(path,Highgui.CV_LOAD_IMAGE_COLOR);
+    		Mat resizeMatRGB = new Mat();
+    		Size s= matRGB.size();
+    		
+    		if (Math.max(matRGB.size().height,matRGB.size().width) > DocumentBuilder.MAX_IMAGE_DIMENSION) {
+    			 double originalWidth = matRGB.size().height;
+    		     double originalHeight = matRGB.size().width;
+    		     double scaleFactor = 0.0;
+    		     if (originalWidth > originalHeight) {
+    		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalWidth);
+    		     }
+    		       else {
+    		           scaleFactor = ((double) DocumentBuilder.MAX_IMAGE_DIMENSION / originalHeight);
+    		     }
+    		     s.width=s.width*scaleFactor;
+    		     s.height=s.height*scaleFactor;
+    		     Imgproc.resize(matRGB,resizeMatRGB,s);
+ 	        }
+    		else {
+    			resizeMatRGB = matRGB.clone();
+    			
+    		}    		
+    		matRGB.release();
+    		matRGB=null;
+    		result[0] = new StoredField("height",(int)s.height);
+    		result[1] = new StoredField("width",(int)s.width);
+				 
+    		Mat matGray = new Mat(resizeMatRGB.height(), resizeMatRGB.width(), CvType.CV_8UC1);
+    		Imgproc.cvtColor(resizeMatRGB, matGray, Imgproc.COLOR_BGR2GRAY); // TODO: RGB
+    		resizeMatRGB.release();
+    		resizeMatRGB=null;
 			try {
 				// or BGR?
 				//lock.lock();
-				log.severe("detect : "+path);
 				detector.detect(matGray, keypoints);
 				//System.out.println("detect"+keypoints.total());
 
@@ -1433,34 +1606,30 @@ public class ParallelIndexer implements Runnable {
 					log.severe("detect :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
-					matRGB.release();
 					matGray.release();
 					descriptors = null;
 					keypoints = null;
-					matRGB = null;
-					matGray = null;
-					
-					
+					matGray = null;				
 					return result;
 				}
-				log.severe("compute : "+path);
+               
 				extractor.compute(matGray, keypoints, descriptors);
+				matGray.release();
+				matGray = null;				
+
 
 				 //System.out.println("compute"+keypoints.total());
 				if (keypoints.total() == 0) {
 					log.severe("compute :"+keypoints.total()+" path :"+path);
 					descriptors.release();
 					keypoints.release();
-					matRGB.release();
-					matGray.release();
 					descriptors = null;
 					keypoints = null;
 					matRGB = null;
 					matGray = null;
-					
 					return result;
 				}
-   				log.severe("to list : "+path);
+
 				myKeys = keypoints.toList();
 
 			} catch (Exception e) {
@@ -1471,7 +1640,7 @@ public class ParallelIndexer implements Runnable {
 				//System.out.println("errer image" + path);
 
 			}
-    			log.severe("store field : "+path);
+    		
     		
     		result[2]=new StoredField("numOfFeatures", myKeys.size());
 
@@ -1505,7 +1674,10 @@ public class ParallelIndexer implements Runnable {
     			
     			System.arraycopy(feature, 0, features, feature.length * i, feature.length);    	
     			feature = null;
-    			
+    			x = null;
+    			y = null;
+                size=null;
+
     		}
     		result[3]=new StoredField("rowsOfDesc", rows);
     		result[4]=new StoredField("colsOfDesc", cols);
@@ -1515,30 +1687,45 @@ public class ParallelIndexer implements Runnable {
     		features=null;
     		descriptors.release();
     		keypoints.release();
-    		matRGB.release();
-    		matGray.release();
-		descriptors = null;
-		keypoints = null;
-		matRGB = null;
-		matGray = null;
-		myKeys = null;	
-    		
-		return result;
+
+			descriptors = null;
+			keypoints = null;
+			myKeys = null;
+			
+			//detector = null;
+			//extractor =null;
+
+    		return result;
         }
         
-        public ConsumerForLocalSample(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
-            ExtractorItem tmpExtractorItem = extractorItem.clone();
-            if (extractorItem.isLocal())
-                documentBuilder = new LocalDocumentBuilder(tmpExtractorItem, clusters, aggregator);
-                
-            else if (extractorItem.isSimple())
-                documentBuilder = new SimpleDocumentBuilder(tmpExtractorItem, clusters, aggregator);
-            else throw new UnsupportedOperationException("Something is wrong!! (ConsumerForLocalSample)");
-
-            this.localExtractorItem = tmpExtractorItem;
-            this.clusters = clusters;
+        
+        public ConsumerForOrbFreakFeature() {
+          
             this.locallyEnded = false;
             this.keypointZero=false;
+            
+    		detector = FeatureDetector.create(FeatureDetector.ORB);
+    		extractor = DescriptorExtractor.create(DescriptorExtractor.FREAK);
+    		
+			File temp;
+			try {
+				temp = File.createTempFile("tempFile", ".tmp");
+				String orbSettings = "%YAML:1.0\nname: \"Feature2D.ORB\"\nWTA_K: 2\nedgeThreshold: 31\nfirstLevel: 0\nnFeatures: 3500 \nnLevels: 8 \npatchSize: 31\nscaleFactor: 1.20\nscoreType: 0\n";
+				FileWriter writer = new FileWriter(temp, false);
+				writer.write(orbSettings);
+				writer.close();
+				detector.read(temp.getPath());
+				String freakSettings = "%YAML:1.0 \npatternScale: 22.5 \nnOctaves: 4 \norientationNormalized : True \nscaleNormalized : True\n";
+				writer = new FileWriter(temp, false);
+				writer.write(freakSettings);
+				writer.close();			
+				extractor.read(temp.getPath());
+				temp.deleteOnExit();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+    		
         }
 
         public void run() {
@@ -1555,80 +1742,18 @@ public class ParallelIndexer implements Runnable {
                     else overallCount++;
                     
                     if (!locallyEnded) {   //&& tmp != null
-                       fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
-                       doc = allDocuments.get(tmp.getFileName());
+                       
+                    	doc= allDocuments.get(tmp.getFileName());
                         
-                       for (Field field : fields) {
-                          doc.add(field);
-                       }
-                      
-                        
-                       //fields = this.extractFeatures(tmp.getFileName());
 
-                      /* for (Field field : fields) {
-                           doc.add(field);
-                       } */                      
-                        //doc.add( new StoredField("orbfreakfeature",bytes)); 
-                       fields=null;
-                    }
-                   
-                } catch (InterruptedException e) {
-                    log.severe(e.getMessage());
-                } 
-            }
-        }
-    }
-    class ConsumerForOrbFreakFeature implements Runnable {
-        private AbstractLocalDocumentBuilder documentBuilder;
-        private ExtractorItem localExtractorItem;
-        private LinkedList<Cluster[]> clusters;
-        private boolean locallyEnded;
-        private boolean keypointZero;
-        //private Lock lock = new ReentrantLock();
-     
-        public ConsumerForOrbFreakFeature(ExtractorItem extractorItem, LinkedList<Cluster[]> clusters) {
-            ExtractorItem tmpExtractorItem = extractorItem.clone();
-            if (extractorItem.isLocal())
-                documentBuilder = new LocalDocumentBuilder(tmpExtractorItem, clusters, aggregator);
-                
-            else if (extractorItem.isSimple())
-                documentBuilder = new SimpleDocumentBuilder(tmpExtractorItem, clusters, aggregator);
-            else throw new UnsupportedOperationException("Something is wrong!! (ConsumerForLocalSample)");
-
-            this.localExtractorItem = tmpExtractorItem;
-            this.clusters = clusters;
-            this.locallyEnded = false;
-            this.keypointZero=false;
-        }
-
-        public void run() {
-            WorkItem_Orb tmp;
-            Field[] fields;
-            Document doc;
-                              
-            while (!locallyEnded) {
-                try {
-                    tmp = queue_orb.take();
-                   
-       			    
-                    if (tmp.getFileName() == null) locallyEnded = true;
-                    else overallCount++;
-                    
-                    if (!locallyEnded) {   //&& tmp != null
-                       //fields = documentBuilder.createLocalDescriptorFields(tmp.getListOfFeatures(), localExtractorItem, clusters);
-                       doc = allDocuments.get(tmp.getFileName());
-                        
-                       //for (Field field : fields) {
-                         // doc.add(field);
-                       //}
-                      
-                        
-                       fields = tmp.getFeatures();
+                    System.out.println(""+overallCount+" done!");                                            
+                       fields = this.extractFeatures(tmp.getFileName());
 
                        for (Field field : fields) {
                            doc.add(field);
                        }                       
                         //doc.add( new StoredField("orbfreakfeature",bytes)); 
+                       tmp = null;
                        fields=null;
                     }
                    
