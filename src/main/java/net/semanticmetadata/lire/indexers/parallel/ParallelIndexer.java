@@ -1016,28 +1016,6 @@ public class ParallelIndexer implements Runnable {
                 monitoring.killMonitoring();
                 end = System.currentTimeMillis() - start;
                 System.out.printf("Analyzed %d images in %s ~ %3.2f ms each.\n", overallCount, convertTime(end), ((overallCount > 0) ? ((float) end / (float) overallCount) : -1f));
-
-                p = new Thread(new ProducerForOrbFreakFeature(conSampleMap_Orb));
-                p.start();
-                start = System.currentTimeMillis();
-                for (int i = 0; i < numOfThreads; i++) {
-                    c = new Thread(new ConsumerForOrbFreakFeature(extractorItem, mapWithClassesAndCodebooks.get(extractorItem)));
-                    threads.add(c);
-                    c.start();
-                }
-                monitoring = new Monitoring();
-                m = new Thread(monitoring);
-                m.start();
-                for (Thread thread : threads) {
-                    try {
-                        thread.join();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
-                }
-                monitoring.killMonitoring();
-                end = System.currentTimeMillis() - start;
-                System.out.printf("Analyzed %d images in %s ~ %3.2f ms each.\n", overallCount, convertTime(end), ((overallCount > 0) ? ((float) end / (float) overallCount) : -1f));
                 threads.clear();                            
             }
         } catch (IOException e) {
