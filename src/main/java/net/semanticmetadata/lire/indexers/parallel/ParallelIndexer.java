@@ -587,6 +587,22 @@ public class ParallelIndexer implements Runnable {
         }
     }
 
+    public void addExtractor(Class<? extends GlobalFeature> globalFeatureClass, SimpleExtractor.KeypointDetector detector, int numKeyPoints) {
+        if (lockLists) throw new UnsupportedOperationException("Cannot add extractors!");
+        boolean flag = true;
+        for (Map.Entry<ExtractorItem, LinkedList<Cluster[]>> next : SimpleExtractorsAndCodebooks.entrySet()) {
+            if ((next.getKey().getExtractorClass().equals(globalFeatureClass)) && (next.getKey().getKeypointDetector() == detector)) {
+                flag = false;
+            }
+        }
+        if (flag) {
+            this.SimpleExtractorsAndCodebooks.put(new ExtractorItem(globalFeatureClass, detector, numKeyPoints), new LinkedList<Cluster[]>());
+            this.sampling = true;
+        } else {
+            throw new UnsupportedOperationException(globalFeatureClass.getSimpleName() + " with " + detector.name() + " already exists!!");
+        }
+    }
+
     public void addExtractor(Class<? extends LocalFeatureExtractor> localFeatureExtractorClass, Cluster[] codebook) {
         LinkedList<Cluster[]> tmpList = new LinkedList<Cluster[]>();
         tmpList.add(codebook);
@@ -1442,6 +1458,8 @@ public class ParallelIndexer implements Runnable {
                     }
                 } catch (InterruptedException e) {
                     log.severe(e.getMessage());
+                }  catch (Exception e) {
+                    log.severe(e.getMessage());
                 }
             }
         }
@@ -1499,7 +1517,10 @@ public class ParallelIndexer implements Runnable {
                    
                 } catch (InterruptedException e) {
                     log.severe(e.getMessage());
-                } 
+
+                }  catch (Exception e) {
+                    log.severe(e.getMessage());
+                }
             }
         }
     }
@@ -1785,6 +1806,8 @@ public class ParallelIndexer implements Runnable {
                     }
                 } catch (InterruptedException | IOException e) {
                     log.severe(e.getMessage());
+                } catch (Exception e) {
+                    log.severe(e.getMessage());
                 }
             }
         }
@@ -1858,6 +1881,8 @@ public class ParallelIndexer implements Runnable {
                         writer.addDocument(doc);
                     }
                 } catch (InterruptedException | IOException e) {
+                    log.severe(e.getMessage());
+                } catch (Exception e) {
                     log.severe(e.getMessage());
                 }
             }
