@@ -46,6 +46,7 @@ import net.semanticmetadata.lire.imageanalysis.features.LocalFeature;
 import net.semanticmetadata.lire.imageanalysis.features.LocalFeatureExtractor;
 import net.semanticmetadata.lire.imageanalysis.features.global.CEDD;
 import net.semanticmetadata.lire.imageanalysis.features.global.EdgeHistogram;
+import net.semanticmetadata.lire.imageanalysis.features.global.BlockedEdgeHistogram;
 import net.semanticmetadata.lire.imageanalysis.features.global.FCTH;
 import net.semanticmetadata.lire.imageanalysis.features.global.JCD;
 import net.semanticmetadata.lire.imageanalysis.features.local.opencvfeatures.CvOrbFreakExtractor;
@@ -213,7 +214,7 @@ public class ParallelIndexer implements Runnable {
             p = new ParallelIndexer(numThreads, indexPath, imageDirectory, numOfClusters, numOfDocsForVocabulary, aggregator);
         }
 //        p.addExtractor(ACCID.class);
-        p.addExtractor(EdgeHistogram.class);
+        p.addExtractor(BlockedEdgeHistogram.class);
         //indexer.addExtractor(CEDD.class);
         //indexer.addExtractor(FCTH.class);
         //indexer.addExtractor(AutoColorCorrelogram.class);
