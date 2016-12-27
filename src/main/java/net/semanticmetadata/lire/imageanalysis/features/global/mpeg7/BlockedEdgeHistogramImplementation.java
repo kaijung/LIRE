@@ -641,13 +641,13 @@ public class BlockedEdgeHistogramImplementation {
             result += Math.abs(QuantTable[i % 5][edgeHistogramA[i]] - QuantTable[i % 5][edgeHistogramB[i]]);
         }
         for (int i = 0; i < 5; i++) {
-            result +=  1d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
+            result +=  5d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
         }
         for (int i = 5; i < 10; i++) {
-            result +=  1d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
+            result +=  3d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
         }
         for (int i = 10; i <= 15; i++) {
-            result +=  1d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
+            result +=  5d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
         }
         for (int i = 15; i <= 20; i++) {
             result +=  1d * Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
@@ -659,13 +659,13 @@ public class BlockedEdgeHistogramImplementation {
             result += 1d * Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
         }
         for (int i = 30; i < 35; i++) {
-            result += 1d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
+            result += 5d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
         }
         for (int i = 35; i < 40; i++) {
-            result += 1d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
+            result += 3d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
         } 
         for (int i = 40; i < 45; i++) {
-            result += 1d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
+            result += 5d*Math.abs(edgeHistogramA[i] - edgeHistogramB[i]);
         } 
         return result;
     }

@@ -58,18 +58,22 @@ public class BlockedEdgeHistogram extends BlockedEdgeHistogramImplementation imp
 
 
     /**
-     * Creates a 40 byte array from an edge histogram descriptor.
+     * Creates a 23 byte array from an edge histogram descriptor.
      * Stuffs 2 numbers into one byte.
      * @return
      */
     @Override
-    public byte[] getByteArrayRepresentation() {
-        byte[] result = new byte[blockedEdgeHistogram.length/2];
-        for (int i = 0; i < result.length; i++) {
+    public byte[] getByteArrayRepresentation() {  	
+        byte[] result = new byte[(blockedEdgeHistogram.length/2)+1];
+        int i=0;
+        for (i = 0; i < result.length-1; i++) {
             tmp = ((int) (blockedEdgeHistogram[(i << 1)])) << 4;
             tmp = (tmp | ((int) (blockedEdgeHistogram[(i << 1) + 1])));
             result[i] = (byte) (tmp - 128);
         }
+        tmp = ((int) (blockedEdgeHistogram[(i << 1)])) << 4;
+        tmp = (tmp | ((int) 0));
+        result[i]=(byte) (tmp - 128);
         return result;
     }
 
@@ -86,11 +90,13 @@ public class BlockedEdgeHistogram extends BlockedEdgeHistogramImplementation imp
 
     @Override
     public void setByteArrayRepresentation(byte[] in, int offset, int length) {
-        for (int i = 0; i < length; i++) {
+    	int i=0;
+        for (i = 0; i < length-1; i++) {
             tmp = in[offset+i] + 128;
             blockedEdgeHistogram[(i << 1) + 1] = ((tmp & 0x000F));
             blockedEdgeHistogram[i << 1] = ((tmp >> 4));
         }
+        blockedEdgeHistogram[(i << 1)] = ((in[offset+i] + 128) >> 4);
     }
 
 
