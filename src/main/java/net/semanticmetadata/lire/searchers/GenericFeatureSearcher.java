@@ -481,19 +481,20 @@ public class GenericFeatureSearcher extends AbstractFeatureSearcher {
                 searchHits = new SimpleFeatureSearchHits(this.docs, maxDistance);
             } else {
                 searchHits = new SimpleFeatureSearchHits(this.docs, maxDistance, useSimilarityScore);
+            }        
+            } 
+        else if (extractorItem.isLocal()){
+            LocalFeatureExtractor localFeatureExtractor = (LocalFeatureExtractor) extractorItem.getFeatureInstance();
+            aggregator.createVectorRepresentation(localFeatureExtractor.getFeatures(), Cluster.readClusters(codebooksDir + File.separator + codebookName));
+            extractorItem.getFeatureInstance().setByteArrayRepresentation(aggregator.getByteVectorRepresentation());
+
+            double maxDistance = findSimilar(reader, extractorItem.getFeatureInstance());
+            if (!useSimilarityScore) {
+                searchHits = new SimpleFeatureSearchHits(this.docs, maxDistance);
+            } else {
+                searchHits = new SimpleFeatureSearchHits(this.docs, maxDistance, useSimilarityScore);
             }
-//        } else if (extractorItem.isLocal()){
-//            LocalDocumentBuilder localDocumentBuilder = new LocalDocumentBuilder();
-//            LocalFeatureExtractor localFeatureExtractor = localDocumentBuilder.extractLocalFeatures(image, (LocalFeatureExtractor) extractorItem.getExtractorInstance());
-//            aggregator.createVectorRepresentation(localFeatureExtractor.getFeatures(), Cluster.readClusters(codebooksDir + File.separator + codebookName));
-//            extractorItem.getFeatureInstance().setByteArrayRepresentation(aggregator.getByteVectorRepresentation());
-//
-//            double maxDistance = findSimilar(reader, extractorItem.getFeatureInstance());
-//            if (!useSimilarityScore) {
-//                searchHits = new SimpleImageSearchHits(this.docs, maxDistance);
-//            } else {
-//                searchHits = new SimpleImageSearchHits(this.docs, maxDistance, useSimilarityScore);
-//            }
+
 //        } else if (extractorItem.isSimple()){
 //            SimpleDocumentBuilder simpleDocumentBuilder = new SimpleDocumentBuilder();
 //            LocalFeatureExtractor localFeatureExtractor = simpleDocumentBuilder.extractLocalFeatures(image, (LocalFeatureExtractor) extractorItem.getExtractorInstance());
@@ -591,7 +592,7 @@ public class GenericFeatureSearcher extends AbstractFeatureSearcher {
     	return fee;
 	}
     public String toString() {
-        return "GenericSearcher using " + extractorItem.getExtractorClass().getName();
+        return "GenericFeatureSearcher using " + extractorItem.getExtractorClass().getName();
     }
 
 
