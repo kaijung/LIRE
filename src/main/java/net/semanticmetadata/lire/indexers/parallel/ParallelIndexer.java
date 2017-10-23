@@ -46,9 +46,11 @@ import net.semanticmetadata.lire.imageanalysis.features.LocalFeature;
 import net.semanticmetadata.lire.imageanalysis.features.LocalFeatureExtractor;
 import net.semanticmetadata.lire.imageanalysis.features.global.CEDD;
 import net.semanticmetadata.lire.imageanalysis.features.global.EdgeHistogram;
+import net.semanticmetadata.lire.imageanalysis.features.global.AutoColorCorrelogram;
 import net.semanticmetadata.lire.imageanalysis.features.global.BlockedEdgeHistogram;
 import net.semanticmetadata.lire.imageanalysis.features.global.FCTH;
 import net.semanticmetadata.lire.imageanalysis.features.global.JCD;
+import net.semanticmetadata.lire.imageanalysis.features.global.RotationInvariantLocalBinaryPatterns;
 import net.semanticmetadata.lire.imageanalysis.features.local.opencvfeatures.CvOrbFreakExtractor;
 import net.semanticmetadata.lire.imageanalysis.features.local.opencvfeatures.CvOrbFreakFeature;
 import net.semanticmetadata.lire.imageanalysis.features.local.simple.SimpleExtractor;
@@ -158,7 +160,7 @@ public class ParallelIndexer implements Runnable {
         String imageDirectory = null;
         File imageList = null;
         int numThreads = 10;
-        int[] numOfClusters = new int[] {512};
+        int[] numOfClusters=null; 
         Class<? extends AbstractAggregator> aggregator = BOVW.class;
         int numOfDocsForVocabulary=300;
         for (int i = 0; i < args.length; i++) {
@@ -189,7 +191,7 @@ public class ParallelIndexer implements Runnable {
                 if ((i + 1) < args.length) {
                     imageDirectory = args[i + 1];
                 }
-            }else if (arg.startsWith("-N")) { // number of Threads
+            }else if (arg.startsWith("-N")) { // number of Docs For Vocabulary
                 if ((i + 1) < args.length) {
                     try {
                     	numOfDocsForVocabulary = Integer.parseInt(args[i + 1]);
@@ -197,8 +199,22 @@ public class ParallelIndexer implements Runnable {
                         System.err.println("Could not read numOfDocsForVocabulary: " + args[i + 1] + "\nUsing default value " + numOfDocsForVocabulary);
                     }
                 }
+            }else if (arg.startsWith("-C")) { // number of Docs For Vocabulary
+                if ((i + 1) < args.length) {
+                    try {
+                    	numOfClusters =  new int[]{Integer.parseInt(args[i + 1])};
+                    	
+                    } catch (NumberFormatException e) {
+                        System.err.println("Could not read numOfDocsForVocabulary: " + args[i + 1] + "\nUsing default value " + numOfDocsForVocabulary);
+                    }
+                }
+            }
+
         }
+        if(numOfClusters == null) {
+        	numOfClusters = new int[] {512};
         }
+
         if (indexPath == null) {
             printHelp();
             System.exit(-1);
@@ -217,7 +233,7 @@ public class ParallelIndexer implements Runnable {
         p.addExtractor(BlockedEdgeHistogram.class);
         //indexer.addExtractor(CEDD.class);
         //indexer.addExtractor(FCTH.class);
-        //indexer.addExtractor(AutoColorCorrelogram.class);
+        p.addExtractor(RotationInvariantLocalBinaryPatterns.class);
         //Local
         //indexer.addExtractor(CvSurfExtractor.class);
         //indexer.addExtractor(CvSiftExtractor.class);
